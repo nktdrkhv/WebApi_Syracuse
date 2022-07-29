@@ -1,0 +1,97 @@
+using System.Collections.Concurrent;
+using FluentValidation;
+using AutoMapper;
+
+public record Cpfc(int Calories, int Proteins, int Fats, int Cabs);
+
+public record Customer
+{
+    public string Email { get; init; } = default!;
+    public string Name { get; init; } = default!;
+    public string Gender { get; init; } = default!;
+    public int Age { get; init; } = default!;
+    public int Height { get; init; } = default!;
+    public int Weight { get; init; } = default!;
+    public string Purpose { get; init; } = default!;
+    public double ActivityLevel { get; init; } = default!;
+}
+
+public class CustomerValidator : AbstractValidator<Customer>
+{
+    public CustomerValidator()
+    {
+        RuleFor(customer => customer.Email).NotEmpty().EmailAddress().WithMessage("Вы указали неверный адресс эдектронной почты");
+        RuleFor(customer => customer.Name).NotEmpty().Length(2, 20).WithMessage("Укажите корректное имя");
+        RuleFor(customer => customer.Gender).Matches("Мужчина|Женщина").WithMessage("Укажите корректный пол");
+        RuleFor(customer => customer.Age).InclusiveBetween(10, 99).WithMessage("Укажите корректный возраст");
+        RuleFor(customer => customer.Height).InclusiveBetween(100, 250).WithMessage("Укажите корректный рост");
+        RuleFor(customer => customer.Weight).InclusiveBetween(30, 250).WithMessage("Укажите корректный вес");
+    }
+}
+
+public class CustomerMapper : Profile
+{
+    public CustomerMapper()
+    {
+        CreateMap<IFormCollection, Customer>()
+            .ForMember(c => c.Age, opt => opt.MapFrom(f => int.Parse(f["age"])))
+            .ForMember(c => c.Height, opt => opt.MapFrom(f => int.Parse(f["height"])))
+            .ForMember(c => c.Weight, opt => opt.MapFrom(f => int.Parse(f["weight"])))
+            .ForMember(c => c.Name, opt => opt.MapFrom(f => f["name"]))
+            .ForMember(c => c.Email, opt => opt.MapFrom(f => f["email"]))
+            .ForMember(c => c.Purpose, opt => opt.MapFrom(f => f["purpose"]))
+            .ForMember(c => c.ActivityLevel, opt => opt.MapFrom(f => CustomerHelper.Values[f["activity_level"]]));
+    }
+}
+
+public static class CustomerHelper
+{
+    public static Cpfc CalculateCpfc(Customer data)
+    {
+        double proteins, fats, cabs, calories;
+        double purpose = Values[data.Purpose];
+
+        switch (data.Gender)
+        {
+            case "Мужчина":
+                proteins = data.Weight * 2;
+                fats = data.Weight;
+                calories = (10 * data.Weight + 6.25 * data.Height - 5 * data.Age + 5) * data.ActivityLevel;
+                cabs = (calories - fats * 9 - proteins * 4) / 4;
+                break;
+            case "Женщина":
+                proteins = data.Weight * 2;
+                fats = 0;
+                calories = 0;
+                cabs = 0;
+                break;
+            default:
+                throw new Exception();
+        }
+
+        return new((int)calories, (int)proteins, (int)fats, (int)cabs);
+    }
+
+    // rows: calories, proteins, fats, carbohydrates
+    // columns: porridge, nuts, chocolate, proteins
+    public static double[,] Meals =
+    {
+        {330, 62, 13,  3},
+        {600, 22, 18, 48},
+        {460, 25, 10, 36},
+        {162,  0, 20,  5},
+    };
+
+    public static ConcurrentDictionary<string, double> Values = new()
+    {
+        ["Малоподвижный образ жизни"] = 1.2,
+        ["Низкая активность (тренировки 1-2 в неделю)"] = 1.375,
+        ["Умеренная активность (физическая работа или тренировки 3-5 раз в неделю)"] = 1.55,
+        ["Очень активные (физическая работа полный день или интенсивные тренировки 6-7 раз в неделю)"] = 1.7,
+        ["Предельная активность (тяжелая работа + тренировки каждый день)"] = 1.9,
+
+        ["Сушка"] = 0.25,
+        ["Поддержание"] = 1,
+        ["Набор"] = 0.25
+    };
+}
