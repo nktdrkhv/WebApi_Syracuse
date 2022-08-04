@@ -2,6 +2,8 @@ using System.Collections.Concurrent;
 using FluentValidation;
 using AutoMapper;
 
+namespace Syracuse;
+
 public record Cpfc(int Calories, int Proteins, int Fats, int Cabs);
 
 public record Customer
@@ -20,12 +22,12 @@ public class CustomerValidator : AbstractValidator<Customer>
 {
     public CustomerValidator()
     {
-        RuleFor(customer => customer.Email).NotEmpty().EmailAddress().WithMessage("Вы указали неверный адресс эдектронной почты");
-        RuleFor(customer => customer.Name).NotEmpty().Length(2, 20).WithMessage("Укажите корректное имя");
-        RuleFor(customer => customer.Gender).Matches("Мужчина|Женщина").WithMessage("Укажите корректный пол");
-        RuleFor(customer => customer.Age).InclusiveBetween(10, 99).WithMessage("Укажите корректный возраст");
-        RuleFor(customer => customer.Height).InclusiveBetween(100, 250).WithMessage("Укажите корректный рост");
-        RuleFor(customer => customer.Weight).InclusiveBetween(30, 250).WithMessage("Укажите корректный вес");
+        _ = RuleFor(customer => customer.Email).NotEmpty().EmailAddress().WithMessage("Вы указали неверный адрес электронной почты");
+        _ = RuleFor(customer => customer.Name).NotEmpty().Length(2, 20).WithMessage("Укажите корректное имя");
+        _ = RuleFor(customer => customer.Gender).Matches("Мужчина|Женщина").WithMessage("Укажите корректный пол");
+        _ = RuleFor(customer => customer.Age).InclusiveBetween(10, 99).WithMessage("Укажите корректный возраст");
+        _ = RuleFor(customer => customer.Height).InclusiveBetween(100, 250).WithMessage("Укажите корректный рост");
+        _ = RuleFor(customer => customer.Weight).InclusiveBetween(30, 250).WithMessage("Укажите корректный вес");
     }
 }
 
@@ -33,12 +35,13 @@ public class CustomerMapper : Profile
 {
     public CustomerMapper()
     {
-        CreateMap<IFormCollection, Customer>()
+        _ = CreateMap<IFormCollection, Customer>()
             .ForMember(c => c.Age, opt => opt.MapFrom(f => int.Parse(f["age"])))
             .ForMember(c => c.Height, opt => opt.MapFrom(f => int.Parse(f["height"])))
             .ForMember(c => c.Weight, opt => opt.MapFrom(f => int.Parse(f["weight"])))
             .ForMember(c => c.Name, opt => opt.MapFrom(f => f["name"]))
             .ForMember(c => c.Email, opt => opt.MapFrom(f => f["email"]))
+            .ForMember(c => c.Gender, opt => opt.MapFrom(f=> f["gender"]))
             .ForMember(c => c.Purpose, opt => opt.MapFrom(f => f["purpose"]))
             .ForMember(c => c.ActivityLevel, opt => opt.MapFrom(f => CustomerHelper.Values[f["activity_level"]]));
     }
@@ -56,14 +59,14 @@ public static class CustomerHelper
             case "Мужчина":
                 proteins = data.Weight * 2;
                 fats = data.Weight;
-                calories = (10 * data.Weight + 6.25 * data.Height - 5 * data.Age + 5) * data.ActivityLevel;
-                cabs = (calories - fats * 9 - proteins * 4) / 4;
+                calories = ((10 * data.Weight) + (6.25 * data.Height) - (5 * data.Age) + 5) * data.ActivityLevel * purpose;
+                cabs = (calories - (proteins * 4) - (fats * 9)) / 4;
                 break;
             case "Женщина":
-                proteins = data.Weight * 2;
-                fats = 0;
-                calories = 0;
-                cabs = 0;
+                proteins = data.Weight * 1.7;
+                fats = data.Weight * 1.2;
+                calories = ((10 * data.Weight) + (6.25 * data.Height) - (5 * data.Age) - 161) * data.ActivityLevel * purpose;
+                cabs = (calories - (proteins * 4) - (fats * 9)) / 4;
                 break;
             default:
                 throw new Exception();
@@ -90,8 +93,8 @@ public static class CustomerHelper
         ["Очень активные (физическая работа полный день или интенсивные тренировки 6-7 раз в неделю)"] = 1.7,
         ["Предельная активность (тяжелая работа + тренировки каждый день)"] = 1.9,
 
-        ["Сушка"] = 0.25,
+        ["Сушка"] = 0.9,
         ["Поддержание"] = 1,
-        ["Набор"] = 0.25
+        ["Набор"] = 1.2,
     };
 }

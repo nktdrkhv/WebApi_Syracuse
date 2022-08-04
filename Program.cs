@@ -1,23 +1,27 @@
-using System.Text;
 using AutoMapper;
 using FluentValidation;
+using Syracuse;
+using System.Text;
 
-var builder = WebApplication.CreateBuilder(args);
+WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
+var mail = new MailService();
+var pdf = new PdfService();
 var mappingConfig = new MapperConfiguration(mc => mc.AddProfile(new CustomerMapper()));
 IMapper autoMapper = mappingConfig.CreateMapper();
 
+builder.Services.AddSingleton(pdf);
+builder.Services.AddSingleton(mail);
 builder.Services.AddSingleton(autoMapper);
 builder.Services.AddScoped<IValidator<Customer>, CustomerValidator>();
 
-var app = builder.Build();
+WebApplication app = builder.Build();
 
 app.UseHttpsRedirection();
 
-app.MapPost("/tilda", async (HttpContext context, IValidator<Customer> validator, IMapper mapper) =>
+app.MapPost("/tilda", async (HttpContext context, IValidator<Customer> validator, IMapper mapper, MailService mailSender, PdfService pdfCreator) =>
 {
-    app.Logger.LogDebug("Got a request");
-    var requestForm = context.Request.Form;
+    IFormCollection requestForm = context.Request.Form;
 
     if (requestForm["test"] == "test")
     {
@@ -27,11 +31,25 @@ app.MapPost("/tilda", async (HttpContext context, IValidator<Customer> validator
 
     PrintFormData(requestForm);
 
-    var customer = mapper.Map<IFormCollection, Customer>(requestForm); //
-    var validationResult = await validator.ValidateAsync(customer); //
+    Customer customer = mapper.Map<IFormCollection, Customer>(requestForm);
+    FluentValidation.Results.ValidationResult validationResult = await validator.ValidateAsync(customer);
 
     if (validationResult.IsValid)
-        app.Logger.LogInformation(customer.ToString());
+    {
+        app.Logger.LogInformation(message: customer.ToString());
+        var programPath = pdfCreator.CreatePdf(customer);
+        await mailSender.SendMailAsync(customer.Email, customer.Name, $"Здравствуйте, {customer.Name}, ваша программа готова!", "**красивое оформление**", ("Программа.pdf", programPath));
+        app.Logger.LogInformation($"Программа отправлена: {customer.Email}");
+    }
+    else
+    {
+        var sb = new StringBuilder();
+        _ = sb.AppendLine("При вводе данных на сайте, произошла ошибка\n");
+        _ = sb.Append(validationResult.ToString());
+        await mailSender.SendMailAsync(customer.Email, customer.Name, "Произошла ошибка!", sb.ToString());
+        app.Logger.LogWarning("Письмо об ошибке отправлено");
+    }
+
     return Task.CompletedTask;
 });
 
@@ -40,8 +58,8 @@ app.Run();
 void PrintFormData(IFormCollection form)
 {
     var log = new StringBuilder();
-    log.Append("Raw input data from a form:");
-    foreach (var input in form)
+    _ = log.AppendLine("Raw input data from a form:");
+    foreach (KeyValuePair<string, Microsoft.Extensions.Primitives.StringValues> input in form)
         _ = log.AppendLine($"{input.Key} - {input.Value}");
     log[^1] = ' ';
     app.Logger.LogInformation(log.ToString());
