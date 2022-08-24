@@ -5,57 +5,92 @@ using static UglyToad.PdfPig.Writer.PdfDocumentBuilder;
 
 namespace Syracuse;
 
-public class PdfService
+public interface IPdfService
 {
-    private static string s_fontPath = Path.Combine("Resources", "Fonts", "AlumniSans-Regular.ttf");
-    private static string s_templatePath = Path.Combine("Resources", "food-template.png");
+    string CreateNutrition(Agenda agenda, Cpfc cpfc, Diet diet);
+    //string CreateWorkoutProgram();
+}
+
+public class PdfService : IPdfService
+{
+    ILogger<PdfService> _logger;
+
+    private static readonly string s_fontPath = Path.Combine("Resources", "Fonts", "AlumniSans-Regular.ttf");
+    private static readonly string s_nutritionTemplatePath = Path.Combine("Resources", "Templates" ,"nutrition-template.png");
 
     private AddedFont _font;
-    private byte[] _rawTemplate;
+    private byte[] _nutritionRawTemplate;
     private PdfDocumentBuilder _builder;
 
-    private int _width;
-    private int _height;
+    private int _nutritionWidth;
+    private int _nutritionHeight;
 
-    public PdfService()
+    public PdfService(ILogger<PdfService> logger)
     {
-        _rawTemplate = File.ReadAllBytes(s_templatePath);
+        _logger = logger;
 
-        var img = Image.Load(_rawTemplate);
-        _width = img.Width;
-        _height = img.Height;
-    }
-
-    public string CreatePdf(Customer customer)
-    {
-        _builder = new PdfDocumentBuilder 
+        try
         {
-            ArchiveStandard = PdfAStandard.A2A
-        };
-        _font = _builder.AddTrueTypeFont(File.ReadAllBytes(s_fontPath));
+            _nutritionRawTemplate = File.ReadAllBytes(s_nutritionTemplatePath);
 
-        var page = _builder.AddPage(_width, _height);
-        page.AddPng(_rawTemplate, page.PageSize);
-        page.SetTextAndFillColor(255, 255, 255);
+            var img = Image.Load(_nutritionRawTemplate);
+            _nutritionWidth = img.Width;
+            _nutritionHeight = img.Height;
 
-        AddText(page, Label.CreateAge(customer.Age, 120, 525));
-        AddText(page, Label.CreateHeight(customer.Height, 285, 525));
-        AddText(page, Label.CreateWeight(customer.Weight, 450, 525));
-        AddText(page, Label.CreateText(customer.Purpose, 616, 525));
-
-        var cpfc = CustomerHelper.CalculateCpfc(customer);
-        AddText(page, Label.CreatePfc(cpfc.Proteins, 120, 740));
-        AddText(page, Label.CreatePfc(cpfc.Fats, 285, 740));
-        AddText(page, Label.CreatePfc(cpfc.Cabs, 450, 740));
-        AddText(page, Label.CreateText(cpfc.Calories.ToString(), 616, 740));
-
-        var bytes = _builder.Build();
-        var path = Path.Combine("Resources", "Temp", Guid.NewGuid().ToString());
-        File.WriteAllBytes(path, bytes);
-        return path;
+            _builder = new PdfDocumentBuilder
+            {
+                ArchiveStandard = PdfAStandard.A2A
+            };
+            _font = _builder.AddTrueTypeFont(File.ReadAllBytes(s_fontPath));
+        }
+        catch
+        {
+            _logger.LogWarning("Problem with pdf-template loading");
+            throw new PdfExсeption("Ошибка во время считывания шаблонов для генерации PDF");
+        }
     }
 
-    private record Label
+    public string CreateNutrition(Agenda agenda, Cpfc cpfc, Diet diet)
+    {
+        try
+        {
+            var page = _builder.AddPage(_nutritionWidth, _nutritionHeight);
+            page.AddPng(_nutritionRawTemplate, page.PageSize);
+            page.SetTextAndFillColor(255, 255, 255);
+
+            AddText(page, Label.CreateAge((int) agenda.Age, 120, 525));
+            AddText(page, Label.CreateHeight((int) agenda.Height, 285, 525));
+            AddText(page, Label.CreateWeight((int) agenda.Weight, 450, 525));
+            AddText(page, Label.CreateText(agenda.Purpouse.AsString(), 616, 525));
+
+            AddText(page, Label.CreatePfc(cpfc.Proteins, 120, 740));
+            AddText(page, Label.CreatePfc(cpfc.Fats, 285, 740));
+            AddText(page, Label.CreatePfc(cpfc.Cabs, 450, 740));
+            AddText(page, Label.CreateText(cpfc.Calories.ToString(), 616, 740));
+
+            AddText(page, Label.CreateText($"Каша {diet.Breakfast[0]}гр. + любые белки {diet.Breakfast[1]}гр.", 1170, 520));
+            AddText(page, Label.CreateText($"Орехи {diet.Snack1[2]}гр. + шоколад {diet.Snack1[3]}гр.", 1170, 580));
+            AddText(page, Label.CreateText($"Каша {diet.Lunch[0]}гр. + любые белки {diet.Lunch[1]}гр.", 1170, 640));
+            AddText(page, Label.CreateText($"Любые белки {diet.Dinner[1]}гр.", 1170, 700));
+
+            var bytes = _builder.Build();
+            var path = Path.Combine("Resources", "Produced", "Nutritions", Guid.NewGuid().ToString());
+            File.WriteAllBytes(path, bytes);
+            return path;
+        }
+        catch
+        {
+            _logger.LogWarning("Problem with creating nutrition pdf");
+            throw new PdfExсeption("Ошибка во время создания программы питания");
+        }
+    }
+
+    private void AddText(PdfPageBuilder page, Label data) => page.AddText(data.Text,
+            35,
+            new PdfPoint(data.Position.x, 1080 - data.Position.y),
+            _font);
+
+    public record Label
     {
         public string Text { get; set; }
         public (int x, int y) Position { get; set; }
@@ -75,18 +110,12 @@ public class PdfService
                 2 or 3 or 4 => $"{age} года",
                 _ => age.ToString(),
             };
-            return new (textAge, posX, posY);
+            return new(textAge, posX, posY);
         }
-
         public static Label CreateHeight(int height, int posX, int posY) => new($"{height} см.", posX, posY);
         public static Label CreateWeight(int weight, int posX, int posY) => new($"{weight} кг.", posX, posY);
         public static Label CreatePfc(int pfc, int posX, int posY) => new($"{pfc} г.", posX, posY);
         public static Label CreateText(string text, int posX, int posY) => new(text, posX, posY);
     }
-
-    private void AddText(PdfPageBuilder page, Label data) => page.AddText(data.Text,
-            35,
-            new PdfPoint(data.Position.x, 1080 - data.Position.y),
-            _font);
 }
 

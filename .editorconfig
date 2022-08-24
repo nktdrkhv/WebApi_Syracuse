@@ -2,3 +2,6 @@
 
 # IDE0008: Use explicit type
 csharp_style_var_elsewhere = false
+
+# Default severity for all analyzer diagnostics
+dotnet_analyzer_diagnostic.severity = silent

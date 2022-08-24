@@ -7,10 +7,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WebApi_Syracuse", "WebApi_S
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ApiTest_Syracuse", "..\ApiTest_Syracuse\ApiTest_Syracuse.csproj", "{1EBB953D-2076-445D-9F0B-308F5ED795F1}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{B465DDA4-5D94-4306-8019-6F5D40F785B8}"
-	ProjectSection(SolutionItems) = preProject
-		.editorconfig = .editorconfig
-	EndProjectSection
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Syracuse", "..\Syracuse\Syracuse.csproj", "{C1C7F65A-0D49-408E-9754-4542D2B6FE18}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -26,6 +23,10 @@ Global
 		{1EBB953D-2076-445D-9F0B-308F5ED795F1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1EBB953D-2076-445D-9F0B-308F5ED795F1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1EBB953D-2076-445D-9F0B-308F5ED795F1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C1C7F65A-0D49-408E-9754-4542D2B6FE18}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C1C7F65A-0D49-408E-9754-4542D2B6FE18}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C1C7F65A-0D49-408E-9754-4542D2B6FE18}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C1C7F65A-0D49-408E-9754-4542D2B6FE18}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

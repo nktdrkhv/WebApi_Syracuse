@@ -1,66 +1,137 @@
+using Syracuse;
+using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Diagnostics;
 using AutoMapper;
 using FluentValidation;
-using Syracuse;
-using System.Text;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
-var mail = new MailService();
-var pdf = new PdfService();
-var mappingConfig = new MapperConfiguration(mc => mc.AddProfile(new CustomerMapper()));
-IMapper autoMapper = mappingConfig.CreateMapper();
+var mappingConfig = new MapperConfiguration(mc =>
+{
+    mc.AddProfile(new AgendaMapper());
+    mc.AddProfile(new ClientMapper());
+    mc.AddProfile(new WorkerMapper());
+    mc.AddProfile(new WorkoutProgramMapper());
+});
+var autoMapper = mappingConfig.CreateMapper();
 
-builder.Services.AddSingleton(pdf);
-builder.Services.AddSingleton(mail);
+// --------------------------------------------------------------------------------
+
+
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+builder.Services.AddLogging();
+
 builder.Services.AddSingleton(autoMapper);
-builder.Services.AddScoped<IValidator<Customer>, CustomerValidator>();
+builder.Services.AddScoped<IValidator<Client>, ClientValidator>();
+builder.Services.AddScoped<IValidator<Agenda>, AgendaValidator>();
+builder.Services.AddScoped<ICustomerService, CustomerService>();
+builder.Services.AddScoped<IPdfService, PdfService>();
+builder.Services.AddScoped<IMailService, MailService>();
+builder.Services.AddScoped<IDbService, DbService>();
+
+builder.Host.UseSystemd();
+
+// --------------------------------------------------------------------------------
 
 WebApplication app = builder.Build();
 
-app.UseHttpsRedirection();
-
-app.MapPost("/tilda", async (HttpContext context, IValidator<Customer> validator, IMapper mapper, MailService mailSender, PdfService pdfCreator) =>
+app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
-    IFormCollection requestForm = context.Request.Form;
-
-    if (requestForm["test"] == "test")
-    {
-        app.Logger.LogInformation("External testing of a webhook");
-        return context.Response.WriteAsync("test");
-    }
-
-    PrintFormData(requestForm);
-
-    Customer customer = mapper.Map<IFormCollection, Customer>(requestForm);
-    FluentValidation.Results.ValidationResult validationResult = await validator.ValidateAsync(customer);
-
-    if (validationResult.IsValid)
-    {
-        app.Logger.LogInformation(message: customer.ToString());
-        var programPath = pdfCreator.CreatePdf(customer);
-        await mailSender.SendMailAsync(customer.Email, customer.Name, $"Çäðàâñòâóéòå, {customer.Name}, âàøà ïðîãðàììà ãîòîâà!", "**êðàñèâîå îôîðìëåíèå**", ("Ïðîãðàììà.pdf", programPath));
-        app.Logger.LogInformation($"Ïðîãðàììà îòïðàâëåíà: {customer.Email}");
-    }
-    else
-    {
-        var sb = new StringBuilder();
-        _ = sb.AppendLine("Ïðè ââîäå äàííûõ íà ñàéòå, ïðîèçîøëà îøèáêà\n");
-        _ = sb.Append(validationResult.ToString());
-        await mailSender.SendMailAsync(customer.Email, customer.Name, "Ïðîèçîøëà îøèáêà!", sb.ToString());
-        app.Logger.LogWarning("Ïèñüìî îá îøèáêå îòïðàâëåíî");
-    }
-
-    return Task.CompletedTask;
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
 });
+
+if (!app.Environment.IsDevelopment())
+{
+    app.UseExceptionHandler(options =>
+    {
+        options.Run(
+            context =>
+            {
+                context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+                var exceptionObject = context.Features.Get<IExceptionHandlerFeature>();
+                app.Logger.LogWarning($"{exceptionObject.Error.Message}\n{exceptionObject.Error.StackTrace}");
+                return Task.CompletedTask;
+            });
+    });
+}
+
+// --------------------------------------------------------------------------------
+
+
+app.MapGet("/", (HttpContext context) =>
+{
+    app.Logger.LogInformation($"Access to root path: {context.Request.Host}");
+    Results.Ok("These Are Not the Droids You Are Looking For");
+});
+
+
+
+app.MapPost("/tilda", async (HttpContext context, ICustomerService customerService) =>
+{
+
+    IFormCollection requestForm = context.Request.Form;
+    var data = requestForm.ToDictionary(x => x.Key, x => x.Value.ToString());
+
+    if (!data.TryGetValue("token", out var token) || !token.ToString().Equals(KeyHelper.ApiToken))
+    {
+        app.Logger.LogInformation($"Unauthorized from: {context.Request.Headers["X-Forwarded-For"]}");
+        Results.Unauthorized();
+        return;
+    }
+
+    if (data.Key("test") == "test")
+    {
+        app.Logger.LogInformation("External testing of a TILDA webhook");
+        Results.Ok("test");
+        return;
+    }
+
+    app.Logger.LogInformation(message: LogHelper.RawData(data));
+    await customerService.HandleTildaAsync(data);
+    Results.Ok();
+});
+
+
+app.MapPost("/yandex", async (HttpContext context, ICustomerService customerService) =>
+{
+
+    IHeaderDictionary headers = context.Request.Headers;
+    var data = context.Request.Headers.ToDictionary(list => list.Key, list => Regex.Unescape(list.Value.ToString()));
+
+    if (!data.TryGetValue("token", out var token) || !token.ToString().Equals(KeyHelper.ApiToken))
+    {
+        app.Logger.LogInformation($"Unauthorized from: {context.Request.Headers["X-Forwarded-For"]}");
+        Results.Unauthorized();
+        return;
+    }
+
+    app.Logger.LogInformation(message: LogHelper.RawData(data));
+    await customerService.HandleYandexAsync(data);
+    Results.Ok();
+});
+
+// --------------------------------------------------------------------------------
 
 app.Run();
 
-void PrintFormData(IFormCollection form)
-{
-    var log = new StringBuilder();
-    _ = log.AppendLine("Raw input data from a form:");
-    foreach (KeyValuePair<string, Microsoft.Extensions.Primitives.StringValues> input in form)
-        _ = log.AppendLine($"{input.Key} - {input.Value}");
-    log[^1] = ' ';
-    app.Logger.LogInformation(log.ToString());
-}
+//try
+//{
+//}
+//catch (MailExñeption ex)
+//{
+
+//}
+//catch (CustomerExñeption ex)
+//{
+
+//}
+//catch (PdfExñeption ex)
+//{
+
+//}
+//catch (DbExñeption ex)
+//{
+
+//}
