@@ -7,16 +7,16 @@ namespace Syracuse;
 
 public interface IPdfService
 {
-    string CreateNutrition(Agenda agenda, Cpfc cpfc, Diet diet);
+    void CreateNutrition(string path, Agenda agenda, Cpfc cpfc, Diet diet);
     //string CreateWorkoutProgram();
 }
 
 public class PdfService : IPdfService
 {
-    ILogger<PdfService> _logger;
+    private ILogger<PdfService> _logger;
 
     private static readonly string s_fontPath = Path.Combine("Resources", "Fonts", "AlumniSans-Regular.ttf");
-    private static readonly string s_nutritionTemplatePath = Path.Combine("Resources", "Templates" ,"nutrition-template.png");
+    private static readonly string s_nutritionTemplatePath = Path.Combine("Resources", "Templates", "nutrition-template.png");
 
     private AddedFont _font;
     private byte[] _nutritionRawTemplate;
@@ -50,7 +50,7 @@ public class PdfService : IPdfService
         }
     }
 
-    public string CreateNutrition(Agenda agenda, Cpfc cpfc, Diet diet)
+    public void CreateNutrition(string path, Agenda agenda, Cpfc cpfc, Diet diet)
     {
         try
         {
@@ -58,9 +58,9 @@ public class PdfService : IPdfService
             page.AddPng(_nutritionRawTemplate, page.PageSize);
             page.SetTextAndFillColor(255, 255, 255);
 
-            AddText(page, Label.CreateAge((int) agenda.Age, 120, 525));
-            AddText(page, Label.CreateHeight((int) agenda.Height, 285, 525));
-            AddText(page, Label.CreateWeight((int) agenda.Weight, 450, 525));
+            AddText(page, Label.CreateAge((int)agenda.Age, 120, 525));
+            AddText(page, Label.CreateHeight((int)agenda.Height, 285, 525));
+            AddText(page, Label.CreateWeight((int)agenda.Weight, 450, 525));
             AddText(page, Label.CreateText(agenda.Purpouse.AsString(), 616, 525));
 
             AddText(page, Label.CreatePfc(cpfc.Proteins, 120, 740));
@@ -74,9 +74,7 @@ public class PdfService : IPdfService
             AddText(page, Label.CreateText($"Любые белки {diet.Dinner[1]}гр.", 1170, 700));
 
             var bytes = _builder.Build();
-            var path = Path.Combine("Resources", "Produced", "Nutritions", Guid.NewGuid().ToString());
             File.WriteAllBytes(path, bytes);
-            return path;
         }
         catch
         {

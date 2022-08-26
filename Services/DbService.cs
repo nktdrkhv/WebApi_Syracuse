@@ -36,11 +36,12 @@ public interface IDbService : IAsyncDisposable
     ApplicationContext Context { get; }
 
     Task СompleteAsync(int saleId);
-    Task<Sale> AddSale(Client client, Agenda? agenda, SaleType saleType, DateTime dateTime, bool isDone, bool isNewKey = false, string? key = null);
-    Task AddWorkoutProgram(WorkoutProgram workoutProgram);
-    Task<WorkoutProgram?> GetWorkoutProgram(int saleId);
-    Task<string> GetTrainerContacts(string trainerName);
-    Task<(string name, string email)[]> GetInnerEmails(string[] trainerNames = null, bool admins = false);
+    Task<Sale> AddSaleAsync(Client client, Agenda? agenda, SaleType saleType, DateTime dateTime, bool isDone, bool isNewKey = false, string? key = null);
+    Task AddWorkoutProgramAsync(WorkoutProgram workoutProgram);
+    Task<WorkoutProgram?> FindWorkoutProgramAsync(WorkoutProgram workoutProgram);
+    Task<WorkoutProgram?> FindWorkoutProgramAsync(int saleId);
+    Task<string> GetTrainerContactsAsync(string trainerName);
+    Task<(string name, string email)[]> GetInnerEmailsAsync(string[] trainerNames = null, bool admins = false);
 }
 
 public class DbService : IDbService
@@ -65,7 +66,7 @@ public class DbService : IDbService
         }
     }
 
-    public async Task<Sale> AddSale(Client client, Agenda? agenda, SaleType saleType, DateTime dateTime, bool isDone, bool isNewKey = false, string? key = null)
+    public async Task<Sale> AddSaleAsync(Client client, Agenda? agenda, SaleType saleType, DateTime dateTime, bool isDone, bool isNewKey = false, string? key = null)
     {
         Sale sale = null;
 
@@ -80,6 +81,8 @@ public class DbService : IDbService
 
             sale = new Sale { Client = client, Agenda = agenda, Type = saleType, Time = dateTime, IsDone = isDone, Key = key };
             Context.Sales.Add(sale);
+
+            _logger.LogInformation($"Db (new sale): sale [{sale.Id} – {sale.Type}] for {client.Name} ({client.Email})");
         }
         else
         {
@@ -91,8 +94,8 @@ public class DbService : IDbService
             }
             catch
             {
-                _logger.LogInformation($"The key {key} is not find for {client.Name} ({client.Email})");
-                throw new DbExсeption($"У клиента {client.Name} {client.Email} {client.Phone} неверный ключ для обновления его данных");
+                _logger.LogInformation($"Db (update sale): the key [{key}] is not found for {client.Name} ({client.Email})");
+                throw new DbExсeption($"У клиента {client.Name} {client.Email} {client.Phone} неверный ключ для обновления его данных. Перейдите по ссылке ");
             }
 
             client.Id = sale.Client.Id;
@@ -103,29 +106,53 @@ public class DbService : IDbService
                 agenda.Id = sale.Agenda.Id;
                 Context.Agendas.Update(agenda);
             }
+
+            _logger.LogInformation($"Db (update sale): sale [{sale.Id} – {sale.Type}] got correct data for {client.Name} ({client.Email})");
         }
 
         Context.SaveChanges();
         return sale;
     }
 
-    public async Task AddWorkoutProgram(WorkoutProgram workoutProgram)
+    public async Task AddWorkoutProgramAsync(WorkoutProgram workoutProgram)
     {
-        var existOne = (from wp in Context.WorkoutPrograms
-                        where wp.Gender == workoutProgram.Gender &&
-                              wp.Purpouse == workoutProgram.Purpouse &&
-                              wp.Focus == workoutProgram.Focus &&
-                              wp.ActivityLevel == workoutProgram.ActivityLevel &&
-                              wp.Diseases == workoutProgram.Diseases &&
-                              wp.IgnoreDiseases == workoutProgram.IgnoreDiseases
-                        select wp).FirstOrDefault();
+        var existOne = await FindWorkoutProgramAsync(workoutProgram);
         if (existOne is not null)
             existOne.ProgramPath = workoutProgram.ProgramPath;
         else
             await Context.WorkoutPrograms.AddAsync(workoutProgram);
     }
 
-    public async Task<string> GetTrainerContacts(string trainerName)
+    public async Task<WorkoutProgram?> FindWorkoutProgramAsync(WorkoutProgram workoutProgram)
+    {
+        return await (from wp in Context.WorkoutPrograms
+                      where wp.Gender == workoutProgram.Gender &&
+                            wp.Purpouse == workoutProgram.Purpouse &&
+                            wp.Focus == workoutProgram.Focus &&
+                            wp.ActivityLevel == workoutProgram.ActivityLevel &&
+                            wp.Diseases == workoutProgram.Diseases &&
+                            wp.IgnoreDiseases == workoutProgram.IgnoreDiseases
+                      select wp).FirstOrDefaultAsync();
+    }
+
+    public async Task<WorkoutProgram?> FindWorkoutProgramAsync(int saleId)
+    {
+        var sale = await Context.FindAsync<Sale>(saleId);
+        var agenda = sale.Agenda;
+
+        var wp = (from prog in Context.WorkoutPrograms
+                  where agenda.Gender == prog.Gender &&
+                        agenda.ActivityLevel == prog.ActivityLevel &&
+                        agenda.Focus == prog.Focus &&
+                        agenda.Purpouse == prog.Purpouse
+                  select prog).FirstOrDefault();
+        if (wp != null && (wp.Diseases == agenda.Diseases || wp.IgnoreDiseases))
+            return wp;
+        else
+            return null;
+    }
+
+    public async Task<string> GetTrainerContactsAsync(string trainerName)
     {
         try
         {
@@ -150,7 +177,7 @@ public class DbService : IDbService
         }
     }
 
-    public async Task<(string name, string email)[]> GetInnerEmails(string[] trainerNames = null, bool admins = false)
+    public async Task<(string name, string email)[]> GetInnerEmailsAsync(string[] trainerNames = null, bool admins = false)
     {
         try
         {
@@ -165,20 +192,6 @@ public class DbService : IDbService
             _logger.LogWarning($"Problem with finding contacts of admins or trainers");
             throw new DbExсeption($"Невозможно найти контакты для хотя бы одного администратора или тренера");
         }
-    }
-
-    public async Task<WorkoutProgram?> GetWorkoutProgram(int saleId)
-    {
-        var sale = await Context.FindAsync<Sale>(saleId);
-        var agenda = sale.Agenda;
-
-        var wp = (from prog in Context.WorkoutPrograms
-                  where (agenda.Gender == prog.Gender) && (agenda.ActivityLevel == prog.ActivityLevel) && (agenda.Focus == prog.Focus) && (agenda.Purpouse == prog.Purpouse)
-                  select prog).FirstOrDefault();
-        if (wp != null && (wp.Diseases == agenda.Diseases || wp.IgnoreDiseases))
-            return wp;
-        else
-            return null;
     }
 
     public async ValueTask DisposeAsync()

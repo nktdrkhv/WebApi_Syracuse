@@ -1,9 +1,13 @@
 using Syracuse;
 using System.Text.RegularExpressions;
+using System.Globalization;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Diagnostics;
 using AutoMapper;
 using FluentValidation;
+
+CultureInfo.CurrentCulture = new CultureInfo("ru-RU");
+CultureInfo.CurrentUICulture = new CultureInfo("ru-RU");
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -17,7 +21,6 @@ var mappingConfig = new MapperConfiguration(mc =>
 var autoMapper = mappingConfig.CreateMapper();
 
 // --------------------------------------------------------------------------------
-
 
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
@@ -49,9 +52,9 @@ if (!app.Environment.IsDevelopment())
         options.Run(
             context =>
             {
-                context.Response.StatusCode = StatusCodes.Status500InternalServerError;
                 var exceptionObject = context.Features.Get<IExceptionHandlerFeature>();
-                app.Logger.LogWarning($"{exceptionObject.Error.Message}\n{exceptionObject.Error.StackTrace}");
+                context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+                app.Logger.LogWarning($"From Exception fandler: {exceptionObject.Error.Message}\n{exceptionObject.Error.StackTrace}");
                 return Task.CompletedTask;
             });
     });
@@ -66,17 +69,15 @@ app.MapGet("/", (HttpContext context) =>
     Results.Ok("These Are Not the Droids You Are Looking For");
 });
 
-
-
 app.MapPost("/tilda", async (HttpContext context, ICustomerService customerService) =>
 {
-
     IFormCollection requestForm = context.Request.Form;
-    var data = requestForm.ToDictionary(x => x.Key, x => x.Value.ToString());
+    var data = requestForm.ToDictionary(x => x.Key.ToLower(), x => x.Value.ToString());
+    app.Logger.LogInformation(message: LogHelper.RawData(data));
 
     if (!data.TryGetValue("token", out var token) || !token.ToString().Equals(KeyHelper.ApiToken))
     {
-        app.Logger.LogInformation($"Unauthorized from: {context.Request.Headers["X-Forwarded-For"]}");
+        app.Logger.LogInformation($"Unauthorized: {token} != req {KeyHelper.ApiToken}");
         Results.Unauthorized();
         return;
     }
@@ -88,9 +89,18 @@ app.MapPost("/tilda", async (HttpContext context, ICustomerService customerServi
         return;
     }
 
-    app.Logger.LogInformation(message: LogHelper.RawData(data));
-    await customerService.HandleTildaAsync(data);
-    Results.Ok();
+    try
+    {
+        await customerService.HandleTildaAsync(data);
+    }
+    catch (Exception e)
+    {
+        app.Logger.LogError($"T ERROR TEMP: {e.Message} \n STACKTRACE: {e.StackTrace}");
+    }
+    finally
+    {
+        Results.Ok();
+    }
 });
 
 
@@ -98,18 +108,28 @@ app.MapPost("/yandex", async (HttpContext context, ICustomerService customerServ
 {
 
     IHeaderDictionary headers = context.Request.Headers;
-    var data = context.Request.Headers.ToDictionary(list => list.Key, list => Regex.Unescape(list.Value.ToString()));
+    var data = context.Request.Headers.ToDictionary(list => list.Key.ToLower(), list => Regex.Unescape(list.Value.ToString()));
+    app.Logger.LogInformation(message: LogHelper.RawData(data));
 
     if (!data.TryGetValue("token", out var token) || !token.ToString().Equals(KeyHelper.ApiToken))
     {
-        app.Logger.LogInformation($"Unauthorized from: {context.Request.Headers["X-Forwarded-For"]}");
+        app.Logger.LogInformation($"Unauthorized: {token} != req {KeyHelper.ApiToken}");
         Results.Unauthorized();
         return;
     }
 
-    app.Logger.LogInformation(message: LogHelper.RawData(data));
-    await customerService.HandleYandexAsync(data);
-    Results.Ok();
+    try
+    {
+        await customerService.HandleYandexAsync(data);
+    }
+    catch (Exception e)
+    {
+        app.Logger.LogError($"Y ERROR TEMP: {e.Message} \n STACKTRACE: {e.StackTrace}");
+    }
+    finally
+    {
+        Results.Ok();
+    }
 });
 
 // --------------------------------------------------------------------------------
@@ -119,19 +139,19 @@ app.Run();
 //try
 //{
 //}
-//catch (MailExñeption ex)
+//catch (MailExï¿½eption ex)
 //{
 
 //}
-//catch (CustomerExñeption ex)
+//catch (CustomerExï¿½eption ex)
 //{
 
 //}
-//catch (PdfExñeption ex)
+//catch (PdfExï¿½eption ex)
 //{
 
 //}
-//catch (DbExñeption ex)
+//catch (DbExï¿½eption ex)
 //{
 
 //}

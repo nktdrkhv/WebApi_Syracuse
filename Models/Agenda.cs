@@ -1,5 +1,6 @@
 ﻿using FluentValidation;
 using AutoMapper;
+using System.IO;
 
 namespace Syracuse;
 
@@ -36,7 +37,7 @@ public class AgendaMapper : Profile
             .ForMember(dest => dest.DailyActivity,
                 opt => opt.MapFrom(src => src.Key("daily_activity").AsValue()))
             .ForMember(dest => dest.Diseases,
-                opt => opt.MapFrom(src => src.Key("diseases")))
+                opt => opt.MapFrom(src => src.Key("diseases").ToLower().Trim()))
             .ForMember(dest => dest.Purpouse,
                 opt => opt.MapFrom(src => src.Key("purpouse").AsValue()))
             .ForMember(dest => dest.Focus,

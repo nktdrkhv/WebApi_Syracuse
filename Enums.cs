@@ -3,6 +3,7 @@
 public enum SaleType
 {
     Begginer, Profi, Standart, Pro, Coach, Posing, Endo,
+    WorkoutProgram,
 }
 
 public enum MailType

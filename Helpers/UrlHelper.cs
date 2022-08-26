@@ -12,7 +12,7 @@ public static class UrlHelper
         return await response.Content.ReadAsStringAsync();
     }
 
-    public static string MakeLink(SaleType saleType, Dictionary <string, string> data) => 
+    public static string MakeLink(SaleType saleType, Dictionary<string, string> data) =>
         QueryHelpers.AddQueryString(saleType.AsReinputLink(), data);
 
     public static string MakeLink(string baseLink, Dictionary<string, string> data) =>

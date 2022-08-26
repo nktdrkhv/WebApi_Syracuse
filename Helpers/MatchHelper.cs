@@ -2,10 +2,82 @@
 
 public static class MatchHelper
 {
-    public static T2 Key<T1,T2> (this Dictionary<T1, T2> dictionary, T1 key) => dictionary.TryGetValue(key, out var value) ? value : default(T2);
+    public static Dictionary<string, string> TransformToValues(Sale sale)
+    {
+        Dictionary<string, string> valueDic;
+        switch (sale.Type)
+        {
+            case SaleType.Begginer:
+                valueDic = new() { ["key"] = sale.Key, };
+                break;
+            case SaleType.Profi:
+                valueDic = new()
+                {
+                    ["key"] = sale.Key,
+                    ["name"] = sale.Client.Name,
+                    ["phone"] = sale.Client.Phone,
+                    ["email"] = sale.Client.Email,
+                    ["gender"] = sale.Agenda.Gender.AsValue().ToString(),
+                    ["activity_level"] = sale.Agenda.ActivityLevel.ToString(),
+                    ["focus"] = sale.Agenda.Focus.ToString(),
+                    ["purpouse"] = sale.Agenda.Purpouse.ToString(),
+                    ["diseases"] = sale.Agenda.Diseases,
+                };
+                break;
+            case SaleType.Standart:
+                valueDic = new() { ["key"] = sale.Key, };
+                break;
+            case SaleType.Pro:
+                valueDic = new()
+                {
+                    ["key"] = sale.Key,
+                    ["name"] = sale.Client.Name,
+                    ["phone"] = sale.Client.Phone,
+                    ["email"] = sale.Client.Email,
+                    ["phone"] = sale.Agenda.Gender.AsValue().ToString(),
+                    ["phone"] = sale.Agenda.Age.ToString(),
+                    ["phone"] = sale.Agenda.Height.ToString(),
+                    ["phone"] = sale.Agenda.Weight.ToString(),
+                    ["phone"] = sale.Agenda.DailyActivity.ToString(),
+                    ["phone"] = sale.Agenda.Purpouse.ToString(),
+                };
+                break;
+            case SaleType.Coach:
+                valueDic = new()
+                {
+                    ["key"] = sale.Key,
+                    ["name"] = sale.Client.Name,
+                    ["phone"] = sale.Client.Phone,
+                    ["email"] = sale.Client.Email,
+                    ["phone"] = sale.Agenda.Gender.AsValue().ToString(),
+                    ["phone"] = sale.Agenda.Age.ToString(),
+                    ["phone"] = sale.Agenda.Height.ToString(),
+                    ["phone"] = sale.Agenda.Weight.ToString(),
+                    ["phone"] = sale.Agenda.DailyActivity.ToString(),
+                    ["phone"] = sale.Agenda.ActivityLevel.ToString(),
+                    ["phone"] = sale.Agenda.Focus.ToString(),
+                    ["phone"] = sale.Agenda.Purpouse.ToString(),
+                    ["phone"] = sale.Agenda.Diseases,
+                };
+                break;
+            case SaleType.WorkoutProgram:
+                valueDic = new()
+                {
+                    ["key"] = sale.Key,
+                    ["gender"] = sale.Agenda.Gender.AsValue().ToString(),
+                    ["activity_level"] = sale.Agenda.ActivityLevel.ToString(),
+                    ["focus"] = sale.Agenda.Focus.ToString(),
+                    ["purpouse"] = sale.Agenda.Purpouse.ToString(),
+                    ["diseases"] = sale.Agenda.Diseases,
+                };
+                break;
+        }
+        return null;
+    }
 
     // --------------------------------------------------------------------------------
 
+    public static T2 Key<T1, T2>(this Dictionary<T1, T2> dictionary, T1 key) => dictionary.TryGetValue(key, out var value) ? value : default(T2);
     public static bool? AsBool(this int? value) => Archive_ValueToBool.Key(value);
     public static int? AsInt(this string? str) => int.TryParse(str, out int val) ? val : null;
     public static int? AsInt(this int? value) => Archive_ValueToInt.Key(value);
@@ -114,7 +186,7 @@ public static class MatchHelper
         ["3"] = 19,
         ["4"] = 20,
         ["5"] = 21,
-        ["https://static.tildacdn.info/tild3438-3638-4661-a137-383266373862/2.svg"] = 18, 
+        ["https://static.tildacdn.info/tild3438-3638-4661-a137-383266373862/2.svg"] = 18,
         ["https://static.tildacdn.info/tild3131-3036-4637-b561-393365626135/3.svg"] = 19,
         ["https://static.tildacdn.info/tild6566-6333-4366-b838-633263336164/4.svg"] = 20,
         ["https://static.tildacdn.info/tild6331-6233-4933-b365-343363643138/5.svg"] = 21,
@@ -141,5 +213,6 @@ public static class MatchHelper
         [SaleType.Pro] = "https://forms.yandex.ru/cloud/62ffae527e794d2d96b13687",
         [SaleType.Begginer] = "https://forms.yandex.ru/cloud/62ffe07d0170aca2958f5c0c",
         [SaleType.Profi] = "https://forms.yandex.ru/cloud/62ffe07d0170aca2958f5c0c",
+        [SaleType.WorkoutProgram] = "https://forms.yandex.ru/cloud/62fff1f4d2a4c7ac2baeaa93",
     };
 }

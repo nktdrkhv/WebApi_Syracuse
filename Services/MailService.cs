@@ -35,6 +35,7 @@ public class MailService : IMailService, IAsyncDisposable
         Environment.GetEnvironmentVariable("MAIL_FROM_NAME") ?? "Команда",
         Environment.GetEnvironmentVariable("MAIL_FROM_ADDR") ?? "noreply@demo.nktdrkhv.ru");
 
+
     private readonly SmtpClient _smtpClient;
 
     public MailService(ILogger<MailService> logger)
@@ -140,9 +141,9 @@ public class MailService : IMailService, IAsyncDisposable
                     {
                         var message = inbox.GetMessage(fetch.UniqueId);
                         var attachment = message.Attachments.FirstOrDefault(); ;
-                        using var fs = new FileStream(path, FileMode.OpenOrCreate);
+                        using var fs = new FileStream(path, FileMode.OpenOrCreate); //
                         if (attachment is null) throw new Exception("Яндекс.Формы не приложили программу тренировок");
-                        ((MimePart) attachment)?.Content.DecodeTo(fs);
+                        ((MimePart)attachment).Content.DecodeTo(fs);
                         isDone = true;
                         await inbox.StoreAsync(fetch.UniqueId, new StoreFlagsRequest(StoreAction.Add, MessageFlags.Seen));
                         break;

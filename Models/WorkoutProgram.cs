@@ -25,7 +25,7 @@ public class WorkoutProgramMapper : Profile
             .ForMember(dest => dest.ActivityLevel,
                 opt => opt.MapFrom(src => src.Key("activity_level").AsValue()))
             .ForMember(dest => dest.Diseases,
-                opt => opt.MapFrom(src => src.Key("diseases")))
+                opt => opt.MapFrom(src => src.Key("diseases").ToLower().Trim()))
             .ForMember(dest => dest.Purpouse,
                 opt => opt.MapFrom(src => src.Key("purpouse").AsValue()))
             .ForMember(dest => dest.Focus,
