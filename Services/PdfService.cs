@@ -43,10 +43,10 @@ public class PdfService : IPdfService
             };
             _font = _builder.AddTrueTypeFont(File.ReadAllBytes(s_fontPath));
         }
-        catch
+        catch (Exception ex)
         {
-            _logger.LogWarning("Problem with pdf-template loading");
-            throw new PdfExсeption("Ошибка во время считывания шаблонов для генерации PDF");
+            _logger.LogWarning("Pdf (ctor): problem with pdf-template loading");
+            throw new PdfExсeption("Ошибка во время считывания шаблонов для генерации PDF", ex);
         }
     }
 
@@ -76,10 +76,10 @@ public class PdfService : IPdfService
             var bytes = _builder.Build();
             File.WriteAllBytes(path, bytes);
         }
-        catch
+        catch (Exception ex)
         {
-            _logger.LogWarning("Problem with creating nutrition pdf");
-            throw new PdfExсeption("Ошибка во время создания программы питания");
+            _logger.LogWarning("Pdf (create nutrition): problem with creating nutrition pdf");
+            throw new PdfExсeption("Ошибка во время создания программы питания", ex);
         }
     }
 
@@ -116,4 +116,3 @@ public class PdfService : IPdfService
         public static Label CreateText(string text, int posX, int posY) => new(text, posX, posY);
     }
 }
-

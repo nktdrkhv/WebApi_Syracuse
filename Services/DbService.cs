@@ -118,9 +118,16 @@ public class DbService : IDbService
     {
         var existOne = await FindWorkoutProgramAsync(workoutProgram);
         if (existOne is not null)
+        {
             existOne.ProgramPath = workoutProgram.ProgramPath;
+            Context.WorkoutPrograms.Update(existOne);
+            _logger.LogInformation($"Db (add wp): wp is exits {workoutProgram.ProgramPath}");
+        }
         else
+        {
             await Context.WorkoutPrograms.AddAsync(workoutProgram);
+            _logger.LogInformation($"Db (add wp): wp is newby {workoutProgram.ProgramPath}");
+        }
     }
 
     public async Task<WorkoutProgram?> FindWorkoutProgramAsync(WorkoutProgram workoutProgram)
@@ -156,7 +163,7 @@ public class DbService : IDbService
     {
         try
         {
-            var worker = await Context.Workers.Where(w => w.Name == trainerName).SingleAsync(); //// catch error
+            var worker = await Context.Workers.Where(w => w.Name == trainerName).SingleAsync();
             var contacts = new StringBuilder();
 
             foreach (var item in worker.Contacts.Where(c => c.Type == ContactType.Email))
@@ -172,7 +179,7 @@ public class DbService : IDbService
         }
         catch
         {
-            _logger.LogWarning($"Problem with finding contacts of {trainerName}");
+            _logger.LogWarning($"Db (trainer contacts): Cant find contacts of {trainerName}");
             throw new DbExсeption($"Невозможно найти контакты для тренера: {trainerName}");
         }
     }
@@ -189,7 +196,7 @@ public class DbService : IDbService
         }
         catch
         {
-            _logger.LogWarning($"Problem with finding contacts of admins or trainers");
+            _logger.LogWarning($"Db (inner emails): Cant find contacts of ");
             throw new DbExсeption($"Невозможно найти контакты для хотя бы одного администратора или тренера");
         }
     }
@@ -198,6 +205,7 @@ public class DbService : IDbService
     {
         await Context.SaveChangesAsync();
         await Context.DisposeAsync();
+        _logger.LogInformation("Db (dispose): disposed");
     }
 }
 

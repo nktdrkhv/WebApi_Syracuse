@@ -10,7 +10,6 @@ public interface IMailService
 {
     Task SendMailAsync(MailType type, (string email, string name)[] addressee, string subject, string message, params (string name, string path)[] filePaths);
     Task SendMailAsync(MailType type, (string email, string name) addressee, string subject, string message, params (string name, string path)[] filePaths);
-
     Task LoadAttachmentAsync(string key, string path);
 }
 
@@ -28,12 +27,12 @@ public class MailService : IMailService, IAsyncDisposable
     private static readonly int s_smtpPort = 465;
     private static readonly int s_imapPort = 993;
 
-    private static readonly string s_user = Environment.GetEnvironmentVariable("MAIL_USER") ?? "noreply@demo.nktdrkhv.ru";
-    private static readonly string s_password = Environment.GetEnvironmentVariable("MAIL_PASS") ?? "YUStitPgTTMFmQSJ4SuT";
+    private static readonly string s_user = Environment.GetEnvironmentVariable("MAIL_USER");
+    private static readonly string s_password = Environment.GetEnvironmentVariable("MAIL_PASS");
 
     private static readonly MailboxAddress s_from = new MailboxAddress(
-        Environment.GetEnvironmentVariable("MAIL_FROM_NAME") ?? "Команда",
-        Environment.GetEnvironmentVariable("MAIL_FROM_ADDR") ?? "noreply@demo.nktdrkhv.ru");
+        Environment.GetEnvironmentVariable("MAIL_FROM_NAME"),
+        Environment.GetEnvironmentVariable("MAIL_FROM_ADDR"));
 
 
     private readonly SmtpClient _smtpClient;
@@ -50,12 +49,16 @@ public class MailService : IMailService, IAsyncDisposable
         }
         catch
         {
-            _logger.LogWarning("Problem with SMTP auth");
+            _logger.LogWarning("Mail (ctor): roblem with SMTP auth");
             throw new MailExсeption("Ошибка при авторизации на SMTP сервере почты");
         }
     }
 
-    public async ValueTask DisposeAsync() => await _smtpClient.DisconnectAsync(true);
+    public async ValueTask DisposeAsync()
+    {
+        await _smtpClient.DisconnectAsync(true);
+        _logger.LogInformation("Mail (dispose): disposed");
+    }
 
     public async Task SendMailAsync(MailType type, (string email, string name) addressee, string subject, string message, params (string name, string path)[] filePaths) => await SendMailAsync(type, new[] { addressee }, subject, message, filePaths);
 
@@ -70,6 +73,7 @@ public class MailService : IMailService, IAsyncDisposable
                 MailType.Success => await File.ReadAllTextAsync(s_successMailPath),
                 MailType.Awaiting => await File.ReadAllTextAsync(s_awaitMailPath),
                 MailType.Failure => await File.ReadAllTextAsync(s_failureMailPath),
+                MailType.Inner => await File.ReadAllTextAsync(s_innerMailPath),
             };
 
             var htmlBody = html.Replace("TEXT", message);
@@ -77,7 +81,7 @@ public class MailService : IMailService, IAsyncDisposable
         }
         catch
         {
-            _logger.LogWarning("Problem with loading mail template");
+            _logger.LogWarning("Mail (html coad): problem with loading mail template");
             throw new MailExсeption("Ошибка при загрузке шаблона письма");
         }
 
@@ -89,7 +93,7 @@ public class MailService : IMailService, IAsyncDisposable
         }
         catch
         {
-            _logger.LogWarning("Problem with adding attachments");
+            _logger.LogWarning($"Mail (add attchmnts): cant add attachment {filePaths.GetHashCode()}");
             throw new MailExсeption("Ошибка при добавлении вложений в письмо");
         }
 
@@ -108,7 +112,7 @@ public class MailService : IMailService, IAsyncDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogWarning("Problem with sending email");
+            _logger.LogWarning($"Mail (set properties and sending): problem with sending email. EX: {ex.Message}");
             throw new MailExсeption("Ошибка при отправке сообщений", ex);
         }
     }
@@ -130,8 +134,9 @@ public class MailService : IMailService, IAsyncDisposable
             var attemptCount = 0;
             while (isDone is false)
             {
-                if (++attemptCount == 15) throw new Exception("Яндекс.Формы не отправили программу тренировок");
+                if (++attemptCount == 15) throw new MailExсeption("Яндекс.Формы не отправили программу тренировок");
                 await Task.Delay(15000);
+                _logger.LogInformation($"Mail (load attch): #{attemptCount} try");
 
                 var notSeenUid = await inbox.SearchAsync(SearchQuery.NotSeen);
                 var fetches = await inbox.FetchAsync(notSeenUid, MessageSummaryItems.UniqueId | MessageSummaryItems.Envelope);
@@ -142,7 +147,7 @@ public class MailService : IMailService, IAsyncDisposable
                         var message = inbox.GetMessage(fetch.UniqueId);
                         var attachment = message.Attachments.FirstOrDefault(); ;
                         using var fs = new FileStream(path, FileMode.OpenOrCreate); //
-                        if (attachment is null) throw new Exception("Яндекс.Формы не приложили программу тренировок");
+                        if (attachment is null) throw new MailExсeption("Яндекс.Формы не приложили программу тренировок");
                         ((MimePart)attachment).Content.DecodeTo(fs);
                         isDone = true;
                         await inbox.StoreAsync(fetch.UniqueId, new StoreFlagsRequest(StoreAction.Add, MessageFlags.Seen));
@@ -150,12 +155,18 @@ public class MailService : IMailService, IAsyncDisposable
                     }
             }
 
+            _logger.LogInformation($"Mail (load attch): done");
             await inbox.CloseAsync(true);
+        }
+        catch (MailExсeption ex)
+        {
+            _logger.LogWarning("Mail (load attch): known issue");
+            throw new MailExсeption($"Ошибка при загрузке вложения. {ex.Message}");
         }
         catch (Exception ex)
         {
-            _logger.LogWarning("Problem with attachment loading");
-            throw new MailExсeption("Ошибка при загрузке вложения.", ex);
+            _logger.LogWarning("Mail (load attch): uknown issue");
+            throw new MailExсeption($"Неизвестная ошибка при отправке вложения.", ex);
         }
     }
 }

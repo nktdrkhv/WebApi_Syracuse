@@ -136,6 +136,13 @@ app.MapPost("/yandex", async (HttpContext context, ICustomerService customerServ
 
 app.Run();
 
+app.Logger.LogInformation("Env: API_TOKEN", Environment.GetEnvironmentVariable("API_TOKEN"));
+app.Logger.LogInformation("Env: UNIVERSAL_KEY", Environment.GetEnvironmentVariable("UNIVERSAL_KEY"));
+app.Logger.LogInformation("Env: MAIL_USER", Environment.GetEnvironmentVariable("MAIL_USER"));
+app.Logger.LogInformation("Env: MAIL_PASS", Environment.GetEnvironmentVariable("MAIL_PASS"));
+app.Logger.LogInformation("Env: MAIL_FROM_NAME", Environment.GetEnvironmentVariable("MAIL_FROM_NAME"));
+app.Logger.LogInformation("Env: MAIL_FROM_ADDR", Environment.GetEnvironmentVariable("MAIL_FROM_ADDR"));
+
 //try
 //{
 //}
