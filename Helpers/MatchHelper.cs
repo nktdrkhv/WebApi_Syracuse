@@ -1,11 +1,14 @@
-﻿namespace Syracuse;
+﻿using System.Text;
+
+namespace Syracuse;
 
 public static class MatchHelper
 {
-    public static Dictionary<string, string> TransformToValues(Sale sale)
+    public static Dictionary<string, string> TransformToValues(Sale sale) => TransformToValues(sale, sale.Type);
+    public static Dictionary<string, string> TransformToValues(Sale sale, SaleType type)
     {
-        Dictionary<string, string> valueDic;
-        switch (sale.Type)
+        Dictionary<string, string> valueDic = null;
+        switch (type)
         {
             case SaleType.Begginer:
                 valueDic = new() { ["key"] = sale.Key, };
@@ -34,12 +37,12 @@ public static class MatchHelper
                     ["name"] = sale.Client.Name,
                     ["phone"] = sale.Client.Phone,
                     ["email"] = sale.Client.Email,
-                    ["phone"] = sale.Agenda.Gender.AsValue().ToString(),
-                    ["phone"] = sale.Agenda.Age.ToString(),
-                    ["phone"] = sale.Agenda.Height.ToString(),
-                    ["phone"] = sale.Agenda.Weight.ToString(),
-                    ["phone"] = sale.Agenda.DailyActivity.ToString(),
-                    ["phone"] = sale.Agenda.Purpouse.ToString(),
+                    ["gender"] = sale.Agenda.Gender.AsValue().ToString(),
+                    ["age"] = sale.Agenda.Age.ToString(),
+                    ["height"] = sale.Agenda.Height.ToString(),
+                    ["weight"] = sale.Agenda.Weight.ToString(),
+                    ["daily_activity"] = sale.Agenda.DailyActivity.ToString(),
+                    ["purpouse"] = sale.Agenda.Purpouse.ToString(),
                 };
                 break;
             case SaleType.Coach:
@@ -49,15 +52,15 @@ public static class MatchHelper
                     ["name"] = sale.Client.Name,
                     ["phone"] = sale.Client.Phone,
                     ["email"] = sale.Client.Email,
-                    ["phone"] = sale.Agenda.Gender.AsValue().ToString(),
-                    ["phone"] = sale.Agenda.Age.ToString(),
-                    ["phone"] = sale.Agenda.Height.ToString(),
-                    ["phone"] = sale.Agenda.Weight.ToString(),
-                    ["phone"] = sale.Agenda.DailyActivity.ToString(),
-                    ["phone"] = sale.Agenda.ActivityLevel.ToString(),
-                    ["phone"] = sale.Agenda.Focus.ToString(),
-                    ["phone"] = sale.Agenda.Purpouse.ToString(),
-                    ["phone"] = sale.Agenda.Diseases,
+                    ["gender"] = sale.Agenda.Gender.AsValue().ToString(),
+                    ["age"] = sale.Agenda.Age.ToString(),
+                    ["height"] = sale.Agenda.Height.ToString(),
+                    ["weight"] = sale.Agenda.Weight.ToString(),
+                    ["daily_activity"] = sale.Agenda.DailyActivity.ToString(),
+                    ["activity_level"] = sale.Agenda.ActivityLevel.ToString(),
+                    ["focus"] = sale.Agenda.Focus.ToString(),
+                    ["purpouse"] = sale.Agenda.Purpouse.ToString(),
+                    ["deseases"] = sale.Agenda.Diseases,
                 };
                 break;
             case SaleType.WorkoutProgram:
@@ -72,7 +75,7 @@ public static class MatchHelper
                 };
                 break;
         }
-        return null;
+        return valueDic;
     }
 
     // --------------------------------------------------------------------------------
@@ -86,6 +89,15 @@ public static class MatchHelper
     public static int? AsValue(this string? form) => Archive_FormToValue.Key(form);
     public static string? AsErrorTitle(this SaleType type) => Archive_SaleTypeToErrorTitle.Key(type);
     public static string? AsReinputLink(this SaleType type) => Archive_SaleTypeToYandexFormForReinput.Key(type);
+    public static string? AsInfoString(this List<Contact> contacts, string separator = null)
+    {
+        var sb = new StringBuilder();
+        foreach (var contact in contacts)
+            sb.AppendLine(contact.Info);
+        if (separator is not null) sb.Replace("\n", separator);
+        return sb.ToString();
+    }
+
 
     // --------------------------------------------------------------------------------
 
@@ -126,7 +138,7 @@ public static class MatchHelper
         [5] = "Низкая активность",
         [6] = "Умеренная активность",
         [7] = "Высокая активность",
-        [8] = "Предельная активность",
+        [8] = "Очень высокая активность",
 
         [9] = "Плечи",
         [10] = "Спина",
@@ -139,6 +151,11 @@ public static class MatchHelper
         [15] = "Алексей",
         [16] = "Дмитрий",
         [17] = "Мария",
+
+        [18] = "2",
+        [19] = "3",
+        [20] = "4",
+        [21] = "5",
     };
 
     private static readonly Dictionary<string?, int?> Archive_FormToValue = new()
@@ -154,7 +171,7 @@ public static class MatchHelper
         ["Низкая активность"] = 5,
         ["Умеренная активность"] = 6,
         ["Высокая активность"] = 7,
-        ["Предельная активность"] = 8,
+        ["Очень высокая активность"] = 8,
         ["https://static.tildacdn.info/tild6537-3335-4762-b236-653430616362/__.svg"] = 4,
         ["https://static.tildacdn.info/tild6263-3961-4663-b435-326333613432/__1-2__.svg"] = 5,
         ["https://static.tildacdn.info/tild6132-6366-4936-b736-616531383834/__1-2__-1.svg"] = 6,
@@ -193,6 +210,10 @@ public static class MatchHelper
 
         ["Да"] = 22,
         ["Нет"] = 23,
+
+        ["Почта"] = 25,
+        ["Телефон"] = 26,
+        ["Адрес"] = 27,
     };
 
     private static readonly Dictionary<SaleType, string?> Archive_SaleTypeToErrorTitle = new()
@@ -209,10 +230,10 @@ public static class MatchHelper
     private static readonly Dictionary<SaleType, string?> Archive_SaleTypeToYandexFormForReinput = new()
     {
         [SaleType.Coach] = "https://forms.yandex.ru/cloud/62ffa34019f03a8bfd90ecb3",
-        [SaleType.Standart] = "https://forms.yandex.ru/cloud/62ffae527e794d2d96b13687",
+        [SaleType.Standart] = "https://forms.yandex.ru/cloud/62ffae527e794d2d96b13687", //
         [SaleType.Pro] = "https://forms.yandex.ru/cloud/62ffae527e794d2d96b13687",
-        [SaleType.Begginer] = "https://forms.yandex.ru/cloud/62ffe07d0170aca2958f5c0c",
+        [SaleType.Begginer] = "https://forms.yandex.ru/cloud/62ffe07d0170aca2958f5c0c", //
         [SaleType.Profi] = "https://forms.yandex.ru/cloud/62ffe07d0170aca2958f5c0c",
-        [SaleType.WorkoutProgram] = "https://forms.yandex.ru/cloud/62fff1f4d2a4c7ac2baeaa93",
+        [SaleType.WorkoutProgram] = "http://demo.nktdrkhv.ru/panel/wp",
     };
 }

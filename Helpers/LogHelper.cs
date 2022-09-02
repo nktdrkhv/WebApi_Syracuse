@@ -4,13 +4,18 @@ namespace Syracuse;
 
 public static class LogHelper
 {
+
     public static string RawData(Dictionary<string, string> data)
     {
         var log = new StringBuilder();
         _ = log.AppendLine("Raw input data:");
         _ = log.AppendLine(DateTime.UtcNow.ToString());
         foreach (var input in data)
+        {
+            if (string.Equals(input.Key, "file"))
+                continue;
             _ = log.AppendLine($"{input.Key} - {input.Value}");
+        }
         log[^1] = ' ';
         return log.ToString();
     }

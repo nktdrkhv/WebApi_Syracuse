@@ -19,18 +19,19 @@ public class WorkoutProgramMapper : Profile
 {
     public WorkoutProgramMapper()
     {
+        // It's already value but in str 
         CreateMap<Dictionary<string, string>, WorkoutProgram>()
             .ForMember(dest => dest.Gender,
-                opt => opt.MapFrom(src => src.Key("gender").AsValue().AsString())) ////
+                opt => opt.MapFrom(src => src.Key("gender").AsInt().AsString()))
             .ForMember(dest => dest.ActivityLevel,
-                opt => opt.MapFrom(src => src.Key("activity_level").AsValue()))
+                opt => opt.MapFrom(src => src.Key("activity_level").AsInt()))
             .ForMember(dest => dest.Diseases,
                 opt => opt.MapFrom(src => src.Key("diseases").ToLower().Trim()))
             .ForMember(dest => dest.Purpouse,
-                opt => opt.MapFrom(src => src.Key("purpouse").AsValue()))
+                opt => opt.MapFrom(src => src.Key("purpouse").AsInt()))
             .ForMember(dest => dest.Focus,
-                opt => opt.MapFrom(src => src.Key("focus").AsValue()))
+                opt => opt.MapFrom(src => src.Key("focus").AsInt()))
             .ForMember(dest => dest.IgnoreDiseases,
-                opt => opt.MapFrom(src => src.Key("ignore_diseases").AsValue().AsBool()));
+                opt => opt.MapFrom(src => src.Key("ignore_diseases").AsInt()));
     }
 }

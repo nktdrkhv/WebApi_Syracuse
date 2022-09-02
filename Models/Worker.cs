@@ -1,7 +1,5 @@
 ﻿using AutoMapper;
 
-using FluentValidation;
-
 namespace Syracuse;
 
 public record Worker
@@ -21,7 +19,7 @@ public class WorkerMapper : Profile
             .ForMember(dest => dest.Name,
                 opt => opt.MapFrom(src => src.Key("name")))
             .ForMember(dest => dest.Nickname,
-                opt => opt.MapFrom(src => src.Key("nickname")))
+                opt => opt.MapFrom(src => src.Key("nickname").ToLower()))
             .ForMember(dest => dest.Admin,
                 opt => opt.MapFrom(src => src.Key("is_admin").AsValue().AsBool()));
     }

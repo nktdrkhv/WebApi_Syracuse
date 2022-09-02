@@ -11,5 +11,5 @@ public record Sale
     public WorkoutProgram? WorkoutProgram { get; set; }
     public string? Nutrition { get; set; }
     public bool IsDone { get; set; }
-    public string? Key { get; set; } 
+    public string? Key { get; set; }
 }

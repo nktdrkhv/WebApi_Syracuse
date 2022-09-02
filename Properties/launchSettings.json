@@ -8,9 +8,10 @@
         "API_TOKEN": "1522171a-b029-4079-9996-dafa51be9404",
         "UNIVERSAL_KEY": "5d7ca0a5-3740-45ba-8062-2086abc30a4c",
         "MAIL_USER": "noreply@demo.nktdrkhv.ru",
-        "MAIL_PASS": "qB8X7RuKs9KuH0YZJBkn",
+        "MAIL_PASS": "byzD2gYVX2ySJeSDSqQT",
         "MAIL_FROM_ADDR": "noreply@demo.nktdrkhv.ru",
-        "MAIL_FROM_NAME": "Служба Поддержки"
+        "MAIL_FROM_NAME": "Korablev Team",
+        "MAIL_FAKE": "yes"
       },
       "dotnetRunMessages": false,
       "applicationUrl": "https://localhost:5001;http://localhost:5000"

@@ -14,6 +14,7 @@ public interface IPdfService
 public class PdfService : IPdfService
 {
     private ILogger<PdfService> _logger;
+    private bool isInit = false;
 
     private static readonly string s_fontPath = Path.Combine("Resources", "Fonts", "AlumniSans-Regular.ttf");
     private static readonly string s_nutritionTemplatePath = Path.Combine("Resources", "Templates", "nutrition-template.png");
@@ -25,10 +26,10 @@ public class PdfService : IPdfService
     private int _nutritionWidth;
     private int _nutritionHeight;
 
-    public PdfService(ILogger<PdfService> logger)
-    {
-        _logger = logger;
+    public PdfService(ILogger<PdfService> logger) => _logger = logger;
 
+    private void Init()
+    {
         try
         {
             _nutritionRawTemplate = File.ReadAllBytes(s_nutritionTemplatePath);
@@ -48,10 +49,13 @@ public class PdfService : IPdfService
             _logger.LogWarning("Pdf (ctor): problem with pdf-template loading");
             throw new PdfExсeption("Ошибка во время считывания шаблонов для генерации PDF", ex);
         }
+        isInit = true;
     }
 
     public void CreateNutrition(string path, Agenda agenda, Cpfc cpfc, Diet diet)
     {
+        if (isInit == false) Init();
+
         try
         {
             var page = _builder.AddPage(_nutritionWidth, _nutritionHeight);

@@ -25,7 +25,7 @@ public class AgendaMapper : Profile
     {
         CreateMap<Dictionary<string, string>, Agenda>()
             .ForMember(dest => dest.Gender,
-                opt => opt.MapFrom(src => src.Key("gender").AsValue().AsString())) ////
+                opt => opt.MapFrom(src => src.Key("gender").AsValue().AsString()))
             .ForMember(dest => dest.Age,
                 opt => opt.MapFrom(src => src.Key("age").AsInt()))
             .ForMember(dest => dest.Height,
@@ -43,7 +43,7 @@ public class AgendaMapper : Profile
             .ForMember(dest => dest.Focus,
                 opt => opt.MapFrom(src => src.Key("focus").AsValue()))
             .ForMember(dest => dest.Trainer,
-                opt => opt.MapFrom(src => src.Key("trainer").AsValue().AsString()));
+                opt => opt.MapFrom(src => System.IO.Path.GetFileNameWithoutExtension(src.Key("trainer")).ToLower()));
     }
 }
 

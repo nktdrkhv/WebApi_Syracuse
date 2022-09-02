@@ -13,7 +13,7 @@ public enum MailType
 
 public enum ContactType
 {
-    Email, Phone, Address
+    Email = 25, Phone = 26, Address = 27
 }
 
 public enum ProductType
