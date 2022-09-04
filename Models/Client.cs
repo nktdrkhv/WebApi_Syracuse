@@ -1,15 +1,23 @@
-﻿using FluentValidation;
+﻿using System.Text.RegularExpressions;
+using FluentValidation;
 using AutoMapper;
 
 namespace Syracuse;
 
 public record Client
 {
-    public int Id { get; set; }
-    public string Email { get; set; }
-    public string Phone { get; set; }
-    public string Name { get; set; }
-    public List<Sale>? Purshares { get; set; }
+    public int Id { get; set; } = default;
+    public string Email { get; set; } = default;
+    public string Phone { get; set; } = default;
+    public string Name { get; set; } = default;
+    public List<Sale>? Purshares { get; set; } = default;
+
+    public Client UpdateWith(Client client)
+    {
+        Phone = client.Phone;
+        Name = client.Name;
+        return this;
+    }
 }
 
 public class ClientMapper : Profile

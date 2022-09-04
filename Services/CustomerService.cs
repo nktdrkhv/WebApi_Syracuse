@@ -1,6 +1,7 @@
 ﻿using System.Text;
 using AutoMapper;
 using FluentValidation;
+using Microsoft.EntityFrameworkCore;
 using ValidationException = FluentValidation.ValidationException;
 
 namespace Syracuse;
@@ -112,7 +113,10 @@ public class CustomerService : ICustomerService
 
         var message2 = $"Новый клиент на консультацию эндокринолога: <br /> {LogHelper.ClientInfo(client).Replace("\n", "<br />")} <br /> Пожалуйста, свяжитесь с ним/ней";
         foreach (var worker in await _db.GetInnerEmailsAsync(admins: true))
+        {
             await _mail.SendMailAsync(MailType.Inner, worker, "Консультация эндокринолога: новый клиент", message2);
+            await Task.Delay(2000);
+        }
         _logger.LogInformation($"Mail (endo): info about {client.Email} is sent to admins");
     }
 
@@ -141,7 +145,7 @@ public class CustomerService : ICustomerService
         /// Добавление данных в БД: новых записей или обновление старых при наличие ключа
         string? key = data.Key("key");
         key = key?.Equals(KeyHelper.UniversalKey) is true ? null : key;
-        await _db.AddSaleAsync(client, agenda, SaleType.Coach,
+        var sale = await _db.AddSaleAsync(client, agenda, SaleType.Coach,
             dateTime: DateTime.UtcNow,
             isDone: true,
             isNewKey: false,
@@ -150,7 +154,7 @@ public class CustomerService : ICustomerService
 
         // ОТЛОВИТЬ ИСКЛЮЧЕНМЯ
         /// Отправка сообщения клиенту
-        var message1 = $"В течение следующего дня (в выходные может потребоваться больше времени) наш тренер свяжется с вами для начала тренировок. <br /> Контакты тренера:\n {await _db.GetCoachContactsAsync(agenda.Trainer)}";
+        var message1 = $"В течение следующего дня (в выходные может потребоваться больше времени) наш тренер свяжется с вами для начала тренировок. <br />Контакты тренера:<br />{await _db.GetCoachContactsAsync(agenda.Trainer)}";
         await _mail.SendMailAsync(MailType.Awaiting, (client.Email, client.Name), "Занятия с Online-тренером", message1);
         _logger.LogInformation($"Mail (coach): sent to {client.Email}");
 
@@ -159,7 +163,12 @@ public class CustomerService : ICustomerService
                         LogHelper.ClientInfo(client, agenda).Replace("\n", "<br />") +
                         "<br /> Пожалуйста, свяжитесь с ним/ней";
         foreach (var worker in await _db.GetInnerEmailsAsync(coachNicknames: new[] { agenda.Trainer }, admins: true))
+        {
             await _mail.SendMailAsync(MailType.Inner, (worker.email, worker.name), "Занятия с Online-тренером: новый клиент", message2);
+            await Task.Delay(2000);
+        }
+
+        await _db.СompleteAsync(sale.Id);
         _logger.LogInformation($"Mail (coach): info about {client.Email} is sent to admins");
     }
 
@@ -270,26 +279,30 @@ public class CustomerService : ICustomerService
     private async Task HandleValidationErrorAsync(ValidationException ex, Dictionary<string, string> data, SaleType saleType, Client client, Agenda? agenda)
     {
         string? existKey = data.Key("key");
-        string key; bool isNewKey; Sale sale;
+        if (string.Equals(existKey, KeyHelper.UniversalKey))
+            return;
+        string key; Sale sale;
 
         if (string.IsNullOrEmpty(existKey))
         {
             key = KeyHelper.NewKey();
-            isNewKey = true;
             sale = await _db.AddSaleAsync(client, agenda, saleType,
                 dateTime: DateTime.UtcNow,
                 isDone: false,
-                isNewKey: isNewKey,
+                isNewKey: true,
                 key: key);
             _logger.LogInformation($"Db (validation of [{saleType}]): [{client.Email}] with key [{key}] added data to db. Waiting new data.");
         }
         else
         {
             key = existKey;
-            isNewKey = false;
-            sale = _db.Context.Sales.Where(s =>
-                string.Equals(s.Key, key, StringComparison.OrdinalIgnoreCase)).Single();
+            sale = (from s in _db.Context.Sales.Include(s => s.Agenda).Include(s => s.Client)
+                    where s.Key == key
+                    select s).Single();
+            sale.Client.UpdateWith(client);
+            if (agenda is not null) sale.Agenda.UpdateWith(agenda);
             _logger.LogInformation($"Db (validation again of [{saleType}]): [{client.Email}] with key [{key}] found in db. Waiting new data.");
+            _logger.LogDebug(sale.Agenda.ToString());
         }
 
         var gettersInfo = MatchHelper.TransformToValues(sale);
@@ -307,7 +320,7 @@ public class CustomerService : ICustomerService
 
     private async Task TransmitWorkoutProgramAsync(Sale sale)
     {
-        var wp = await _db.FindWorkoutProgramAsync(sale.Id);
+        var wp = await _db.FindWorkoutProgramAsync(sale.Agenda);
 
         if (wp is null)
         {
@@ -327,7 +340,10 @@ public class CustomerService : ICustomerService
             var message = $"Необходимо составить новую программу тренировок для:<br />{clientInfo}<br />Перейдите для этого по ссылке: {link}";
 
             foreach (var email in emails)
+            {
                 await _mail.SendMailAsync(MailType.Inner, email, title, message);
+                await Task.Delay(2000);
+            }
             _logger.LogInformation($"Mail (wp): Wp link for admins is sent");
         }
         else
@@ -336,7 +352,6 @@ public class CustomerService : ICustomerService
             _db.Context.Sales.Update(sale);
             _logger.LogInformation($"Client (wp): wp for {sale.Client.Email} is exit. It's {sale.WorkoutProgram.Id} : {sale.WorkoutProgram.ProgramPath}");
 
-            ///await Task.Delay(10000); // Таймер для отправки
             await Task.Delay(1000);
 
             string subject = sale.Type is SaleType.Begginer ? "Begginer: готовая программа" : "Profi: готовая программа";
@@ -350,12 +365,10 @@ public class CustomerService : ICustomerService
 
     private async Task AddWorkoutProgramAsync(Dictionary<string, string> data)
     {
-        //var unique = data.Key("unique");
         var workoutProgram = _mapper.Map<WorkoutProgram>(data);
         workoutProgram.ProgramPath = Path.Combine("Resources", "Produced", "WorkoutPrograms", NewName());
         _logger.LogInformation($"Admin (add wp): wp is mapped. Path. is {workoutProgram.ProgramPath}");
 
-        //await _mail.LoadAttachmentAsync(unique, workoutProgram.ProgramPath);
         var base64string = data.Key("file");
         await Base64Helper.DecodeToPdf(base64string, workoutProgram.ProgramPath);
         await _db.AddWorkoutProgramAsync(workoutProgram);
@@ -367,21 +380,20 @@ public class CustomerService : ICustomerService
         {
             try
             {
-                sale = (from s in _db.Context.Sales
+                sale = (from s in _db.Context.Sales.Include(s => s.WorkoutProgram).Include(s => s.Client)
                         where s.Key == key
                         select s).Single();
             }
-            catch
+            catch (Exception e)
             {
                 _logger.LogWarning($"Admin (add wp): key {key} doesnt exits");
-                throw new CustomerExсeption("Указан некорректный ключ при добавлении программы. Воспользуйтесь отправленной в письме ссылкой.");
+                throw new CustomerExсeption("Указан некорректный ключ при добавлении программы. Воспользуйтесь отправленной в письме ссылкой.", e);
             }
 
             sale.WorkoutProgram = workoutProgram;
             _db.Context.Sales.Update(sale);
             _logger.LogInformation($"Admin (add wp): sale ({sale.Id}) is updated");
 
-            // Ошибка тут где то №6
             string subject = sale.Type is SaleType.Begginer ? "Begginer: готовая программа" : "Profi: готовая программа";
             string message = "Ваша персональная программа тренировок готова! Она прикреплена к данному сообщению.";
             await _mail.SendMailAsync(MailType.Success, (sale.Client.Name, sale.Client.Email), subject, message, ("Персональная программа тренировок.pdf", sale.WorkoutProgram.ProgramPath));
@@ -394,8 +406,6 @@ public class CustomerService : ICustomerService
     private async Task LoadRecepiesAsync(Dictionary<string, string> data)
     {
         var path = Path.Combine("Resources", "Produced", "Recepies.pdf");
-        //var unique = data.Key("unique");
-        //await _mail.LoadAttachmentAsync(unique, path);
         var base64string = data.Key("file");
         if (string.IsNullOrEmpty(base64string)) return;
         await Base64Helper.DecodeToPdf(base64string, path);
@@ -410,7 +420,8 @@ public class CustomerService : ICustomerService
             worker = _mapper.Map<Worker>(data);
             worker.Contacts = new();
             worker.Contacts.Add(new Contact() { Type = ContactType.Email, Info = data.Key("email"), Worker = worker });
-            worker.Contacts.Add(new Contact() { Type = ContactType.Phone, Info = data.Key("phone"), Worker = worker });
+            if (data.Key("phone") is not null)
+                worker.Contacts.Add(new Contact() { Type = ContactType.Phone, Info = data.Key("phone"), Worker = worker });
             _db.Context.Workers.Add(worker);
         }
         catch
@@ -444,7 +455,6 @@ public class CustomerService : ICustomerService
         var contact = _mapper.Map<Contact>(data);
         contact.Worker = worker;
         _db.Context.Contacts.Add(contact);
-        //worker.Contacts.Add(contact); /// не добавляется контакт, не установлен объекат 4я ОШИБКА
         _logger.LogInformation($"Admin (add contact): [{worker.Name}] has new [{contact.Type}] is [{contact.Info}]");
     }
 
@@ -480,4 +490,3 @@ public class CustomerService : ICustomerService
             _logger.LogInformation($"Admin (complete sale): wrong sale id");
     }
 }
-

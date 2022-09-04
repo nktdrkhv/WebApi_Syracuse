@@ -36,8 +36,8 @@ public static class LogHelper
             if (agenda.Age is not null) sb.AppendLine($"Возраст: {agenda.Age}");
             if (agenda.Height is not null) sb.AppendLine($"Рост: {agenda.Height}");
             if (agenda.Weight is not null) sb.AppendLine($"Вес: {agenda.Weight}");
-            if (agenda.ActivityLevel is not null) sb.AppendLine($"Образ жизни: {agenda.ActivityLevel.AsString()}");
-            if (agenda.DailyActivity is not null) sb.AppendLine($"Количество тренировок: {agenda.DailyActivity.AsString()}");
+            if (agenda.ActivityLevel is not null) sb.AppendLine($"Количество тренировок в неделю: {agenda.ActivityLevel.AsString()}");
+            if (agenda.DailyActivity is not null) sb.AppendLine($"Образ жизни: {agenda.DailyActivity.AsString()}");
             if (agenda.Purpouse is not null) sb.AppendLine($"Цель: {agenda.Purpouse.AsString()}");
             if (agenda.Focus is not null) sb.AppendLine($"Акцент на: {agenda.Focus.AsString()}");
             if (agenda.Diseases is not null) sb.AppendLine($"Заболевания: {agenda.Diseases}");

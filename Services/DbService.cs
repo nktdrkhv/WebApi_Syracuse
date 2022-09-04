@@ -1,5 +1,4 @@
 ﻿using System.Text;
-
 using Microsoft.EntityFrameworkCore;
 
 namespace Syracuse;
@@ -21,9 +20,9 @@ public class ApplicationContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Client>()
-                    .HasAlternateKey(c => new { c.Email, c.Phone, c.Name });
+                    .HasAlternateKey(c => c.Email);
         modelBuilder.Entity<Worker>()
-                    .HasIndex(w => w.Nickname).IsUnique();
+                    .HasAlternateKey(w => w.Nickname);
         modelBuilder.Entity<Sale>()
                     .HasIndex(s => s.Key).IsUnique();
         modelBuilder.Entity<Product>()
@@ -37,9 +36,10 @@ public interface IDbService : IAsyncDisposable
 
     Task СompleteAsync(int saleId);
     Task<Sale> AddSaleAsync(Client client, Agenda? agenda, SaleType saleType, DateTime dateTime, bool isDone, bool isNewKey = false, string? key = null);
-    Task AddWorkoutProgramAsync(WorkoutProgram workoutProgram);
+    Task
+    AddWorkoutProgramAsync(WorkoutProgram workoutProgram);
     Task<WorkoutProgram?> FindWorkoutProgramAsync(WorkoutProgram workoutProgram);
-    Task<WorkoutProgram?> FindWorkoutProgramAsync(int saleId);
+    Task<WorkoutProgram?> FindWorkoutProgramAsync(Agenda agenda);
     Task<Table> FindNonDoneSalesAsync(string separator);
     Task<Table> FindWorkoutProgramsAsync(string separator);
     Task<Table> FindTeamAsync(string separator);
@@ -72,8 +72,7 @@ public class DbService : IDbService
     public async Task<Sale> AddSaleAsync(Client client, Agenda? agenda, SaleType saleType, DateTime dateTime, bool isDone, bool isNewKey = false, string? key = null)
     {
         Sale sale = null;
-
-        var oldClient = await Context.Clients.Where(c => c.Email == client.Email && c.Name == client.Name && c.Phone == client.Phone).FirstOrDefaultAsync();
+        var oldClient = await Context.Clients.Where(c => c.Email == client.Email).FirstOrDefaultAsync();
 
         if (string.IsNullOrEmpty(key) || isNewKey)
         {
@@ -88,9 +87,6 @@ public class DbService : IDbService
                 _logger.LogInformation($"Db (new sale): [{client.Name}] ({client.Email}) is new");
             }
 
-            if (agenda is not null)
-                Context.Agendas.Add(agenda);
-
             sale = new Sale { Client = client, Agenda = agenda, Type = saleType, Time = dateTime, IsDone = isDone, Key = key };
             Context.Sales.Add(sale);
 
@@ -100,31 +96,26 @@ public class DbService : IDbService
         {
             try
             {
-                sale = await Context.Sales.Where(s =>
-                    string.Equals(s.Key, key, StringComparison.OrdinalIgnoreCase)).SingleAsync();
-                sale.Key = null;
-                Context.Sales.Update(sale);
-
-                client.Id = sale.Client.Id;
-                Context.Clients.Update(client);
-
-                if (agenda is not null)
-                {
-                    agenda.Id = sale.Agenda.Id;
-                    Context.Agendas.Update(agenda);
-                }
+                sale = await (from s in Context.Sales.Include(s => s.Client).Include(s => s.Agenda)
+                              where s.Key == key
+                              select s).SingleAsync();
             }
             catch
             {
-                _logger.LogInformation($"Db (update sale): the key [{key}] is not found for {client.Name} ({client.Email})");
+                _logger.LogWarning($"Db (update sale): the key [{key}] is not found for [{client.Name}] ({client.Email})");
                 throw new DbExсeption($"У клиента {client.Name} {client.Email} {client.Phone} неверный ключ для обновления его данных.");
                 // а был ли клиент, или это старый пишет. есть ли такой в бд?
             }
 
+            sale.Key = null;
+            sale.Client.UpdateWith(client);
+            if (agenda is not null) sale.Agenda.UpdateWith(agenda);
+
+            Context.Sales.Update(sale);
             _logger.LogInformation($"Db (update sale): sale [{sale.Id} – {sale.Type}] got correct data for {client.Name} ({client.Email})");
         }
 
-        Context.SaveChanges(); //!
+        Context.SaveChanges();
         return sale;
     }
 
@@ -157,21 +148,19 @@ public class DbService : IDbService
                       select wp).FirstOrDefaultAsync();
     }
 
-    public async Task<WorkoutProgram?> FindWorkoutProgramAsync(int saleId)
+    public async Task<WorkoutProgram?> FindWorkoutProgramAsync(Agenda agenda)
     {
-        var sale = await Context.FindAsync<Sale>(saleId);
-        var agenda = sale.Agenda;
-
-        var wp = (from prog in Context.WorkoutPrograms
-                  where agenda.Gender == prog.Gender &&
-                        agenda.ActivityLevel == prog.ActivityLevel &&
-                        agenda.Focus == prog.Focus &&
-                        agenda.Purpouse == prog.Purpouse
-                  select prog).FirstOrDefault();
-        if (wp != null && (wp.Diseases == agenda.Diseases || wp.IgnoreDiseases))
-            return wp;
+        var wp = from prog in Context.WorkoutPrograms
+                 where agenda.Gender == prog.Gender &&
+                       agenda.ActivityLevel == prog.ActivityLevel &&
+                       agenda.Focus == prog.Focus &&
+                       agenda.Purpouse == prog.Purpouse
+                 select prog;
+        var wpWithDeseases = wp.Where(wp => wp.Diseases == agenda.Diseases);
+        if (wpWithDeseases.Count() == 0)
+            return await wp.Where(wp => wp.IgnoreDiseases == true).FirstOrDefaultAsync();
         else
-            return null;
+            return await wpWithDeseases.FirstAsync();
     }
 
     public async Task<Table> FindNonDoneSalesAsync(string separator)
@@ -215,9 +204,9 @@ public class DbService : IDbService
     {
         try
         {
-            var worker = await Context.Workers.Where(
-                w => String.Equals(w.Nickname, coachNickname, StringComparison.OrdinalIgnoreCase))
-                .SingleAsync();
+            var worker = await (from w in Context.Workers.Include(w => w.Contacts)
+                                where w.Nickname == coachNickname
+                                select w).SingleAsync();
             var contacts = new StringBuilder();
 
             foreach (var item in worker.Contacts.Where(c => c.Type == ContactType.Email))

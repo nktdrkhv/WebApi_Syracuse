@@ -1,10 +1,12 @@
 using Syracuse;
-using System.Text.RegularExpressions;
+using System.Text;
 using System.Globalization;
-using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.WebUtilities;
 using AutoMapper;
 using FluentValidation;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 CultureInfo.CurrentCulture = new CultureInfo("ru-RU");
 
@@ -25,7 +27,6 @@ var autoMapper = mappingConfig.CreateMapper();
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 builder.Services.AddLogging();
-
 builder.Services.AddSingleton(autoMapper);
 builder.Services.AddScoped<IValidator<Client>, ClientValidator>();
 builder.Services.AddScoped<IValidator<Agenda>, AgendaValidator>();
@@ -33,12 +34,9 @@ builder.Services.AddScoped<ICustomerService, CustomerService>();
 builder.Services.AddScoped<IPdfService, PdfService>();
 builder.Services.AddScoped<IMailService, MailService>();
 builder.Services.AddScoped<IDbService, DbService>();
-
 builder.Services.AddCors(options =>
     options.AddDefaultPolicy(policy => policy.WithOrigins(
-        "http://demo.nktdrkhv.ru", "https://demo.nktdrkhv.ru",
-        "http://korablev-team.ru", "https://korablev-team.ru")));
-
+        "http://korablev-team.ru", "https://korablev-team.ru").AllowAnyMethod()));
 builder.Host.UseSystemd();
 
 // --------------------------------------------------------------------------------
@@ -47,6 +45,8 @@ WebApplication app = builder.Build();
 
 if (!app.Environment.IsDevelopment())
 {
+    app.UseCors();
+    //app.UseHttpsRedirection();
     app.UseExceptionHandler(options =>
     {
         options.Run(
@@ -62,15 +62,13 @@ if (!app.Environment.IsDevelopment())
 
 // --------------------------------------------------------------------------------
 
-app.UseCors();
-
 app.MapPost("/tilda", async (HttpContext context, ICustomerService customerService) =>
 {
     IFormCollection requestForm = context.Request.Form;
     var data = requestForm.ToDictionary(x => x.Key.ToLower(), x => x.Value.ToString());
     app.Logger.LogInformation(message: LogHelper.RawData(data));
 
-    if (data.Key("token") != KeyHelper.ApiToken)
+    if (!string.Equals(data.Key("token"), KeyHelper.ApiToken))
     {
         app.Logger.LogInformation($"Unauthorized: post tilda");
         return Results.Unauthorized();
@@ -82,39 +80,43 @@ app.MapPost("/tilda", async (HttpContext context, ICustomerService customerServi
         return Results.Ok("test");
     }
 
-    try
+    context.Response.OnCompleted(() => Task.Run(async () =>
     {
-        await customerService.HandleTildaAsync(data);
-    }
-    catch (Exception e)
-    {
-        app.Logger.LogError($"Y ERROR MESSAGE: {e.Message} \n INNER :{e.InnerException} \n SOURCE: {e.Source} \n STACKTRACE: {e.StackTrace}");
-    }
+        try
+        {
+            await customerService.HandleTildaAsync(data);
+        }
+        catch (Exception e)
+        {
+            app.Logger.LogError($"T ERROR MESSAGE: {e.Message} \n INNER :{e.InnerException} \n SOURCE: {e.Source} \n STACKTRACE: {e.StackTrace}");
+        }
+    }));
 
     return Results.Ok();
-
 });
 
-app.MapPost("/yandex", async (HttpContext context, ICustomerService customerService) =>
+app.MapPost("/yandex", async (HttpContext context, YandexJsonrpc json, ICustomerService customerService) =>
 {
-    IHeaderDictionary headers = context.Request.Headers;
-    var data = context.Request.Headers.ToDictionary(list => list.Key.ToLower(), list => Regex.Unescape(list.Value.ToString()));
+    var data = json.Params;
     app.Logger.LogInformation(message: LogHelper.RawData(data));
 
-    if (data.Key("token") != KeyHelper.ApiToken)
+    if (!string.Equals(data.Key("token"), KeyHelper.ApiToken))
     {
         app.Logger.LogInformation($"Unauthorized: post yandex");
         return Results.Unauthorized(); ;
     }
 
-    try
+    context.Response.OnCompleted(() => Task.Run(async () =>
     {
-        await customerService.HandleYandexAsync(data);
-    }
-    catch (Exception e)
-    {
-        app.Logger.LogError($"Y ERROR MESSAGE: {e.Message} \n INNER :{e.InnerException} \n SOURCE: {e.Source} \n STACKTRACE: {e.StackTrace}");
-    }
+        try
+        {
+            await customerService.HandleYandexAsync(data);
+        }
+        catch (Exception e)
+        {
+            app.Logger.LogError($"Y ERROR MESSAGE: {e.Message} \n INNER :{e.InnerException} \n SOURCE: {e.Source} \n STACKTRACE: {e.StackTrace}");
+        }
+    }));
 
     return Results.Ok();
 });
@@ -171,11 +173,6 @@ app.MapGet("/env", () =>
     app.Logger.LogInformation("Env: MAIL_FAKE = {}", Environment.GetEnvironmentVariable("MAIL_FAKE"));
     app.Logger.LogInformation("Env: MAIL_FROM_NAME = {}", Environment.GetEnvironmentVariable("MAIL_FROM_NAME"));
     app.Logger.LogInformation("Env: MAIL_FROM_ADDR = {}", Environment.GetEnvironmentVariable("MAIL_FROM_ADDR"));
-});
-
-app.MapGet("/envtest", () =>
-{
-    app.Logger.LogInformation("Test env is {}", Environment.GetEnvironmentVariable("TEST_ENV"));
 });
 
 // --------------------------------------------------------------------------------

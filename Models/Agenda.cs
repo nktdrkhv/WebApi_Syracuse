@@ -1,22 +1,37 @@
-﻿using FluentValidation;
+﻿using System.Text.RegularExpressions;
+using FluentValidation;
 using AutoMapper;
-using System.IO;
 
 namespace Syracuse;
 
 public record Agenda
 {
-    public int Id { get; set; }
-    public string? Gender { get; set; }
-    public int? Age { get; set; }
-    public int? Height { get; set; }
-    public int? Weight { get; set; }
-    public int? ActivityLevel { get; set; }
-    public int? DailyActivity { get; set; }
-    public int? Purpouse { get; set; }
-    public int? Focus { get; set; }
-    public string? Diseases { get; set; }
-    public string? Trainer { get; set; }
+    public int Id { get; set; } = default;
+    public string? Gender { get; set; } = default;
+    public int? Age { get; set; } = default;
+    public int? Height { get; set; } = default;
+    public int? Weight { get; set; } = default;
+    public int? ActivityLevel { get; set; } = default;
+    public int? DailyActivity { get; set; } = default;
+    public int? Purpouse { get; set; } = default;
+    public int? Focus { get; set; } = default;
+    public string? Diseases { get; set; } = default;
+    public string? Trainer { get; set; } = default;
+
+    public Agenda UpdateWith(Agenda agenda)
+    {
+        Gender = agenda.Gender;
+        Age = agenda.Age;
+        Height = agenda.Height;
+        Weight = agenda.Weight;
+        ActivityLevel = agenda.ActivityLevel;
+        DailyActivity = agenda.DailyActivity;
+        Purpouse = agenda.Purpouse;
+        Focus = agenda.Focus;
+        Diseases = agenda.Diseases;
+        Trainer = agenda.Trainer;
+        return this;
+    }
 }
 
 public class AgendaMapper : Profile
