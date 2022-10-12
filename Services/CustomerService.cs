@@ -1,4 +1,5 @@
 ﻿using System.Text;
+using Hangfire;
 using AutoMapper;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
@@ -58,6 +59,7 @@ public class CustomerService : ICustomerService
             "complete_sale" => CompleteSaleAsync(data),
 
             "load_recepies" => LoadRecepiesAsync(data),
+            "load_instructions" => LoadInstructionsAsync(data),
             "add_workout_program" => AddWorkoutProgramAsync(data),
 
             _ => throw new CustomerExсeption("Пришла форма с некорректным идентификатором"),
@@ -97,7 +99,7 @@ public class CustomerService : ICustomerService
 
     private async Task HandlePosingFormAsync(Dictionary<string, string> data)
     {
-        await Task.Yield();
+        await Task.Yield(); ////!
     }
 
     private async Task HandleEndoFormAsync(Dictionary<string, string> data)
@@ -108,14 +110,14 @@ public class CustomerService : ICustomerService
         await _db.AddSaleAsync(client, null, SaleType.Endo, DateTime.UtcNow, true);
 
         var message1 = $"В течение следующего дня (в выходные может потребоваться больше времени) наш эндокринолог свяжется с вами для консультации";
-        await _mail.SendMailAsync(MailType.Awaiting, (client.Email, client.Name), "Консультация эндокринолога", message1);
+        await _mail.SendMailAsync(MailType.Success, (client.Email, client.Name), "Консультация эндокринолога", message1);
         _logger.LogInformation($"Mail (endo): sent to {client.Email}");
 
         var message2 = $"Новый клиент на консультацию эндокринолога: <br /> {LogHelper.ClientInfo(client).Replace("\n", "<br />")} <br /> Пожалуйста, свяжитесь с ним/ней";
         foreach (var worker in await _db.GetInnerEmailsAsync(admins: true))
         {
-            await _mail.SendMailAsync(MailType.Inner, worker, "Консультация эндокринолога: новый клиент", message2);
             await Task.Delay(2000);
+            await _mail.SendMailAsync(MailType.Inner, worker, "Консультация эндокринолога: новый клиент", message2);
         }
         _logger.LogInformation($"Mail (endo): info about {client.Email} is sent to admins");
     }
@@ -137,7 +139,7 @@ public class CustomerService : ICustomerService
         }
         catch (ValidationException ex)
         {
-            _logger.LogWarning($"Client (coach): {client.Name} {client.Phone} {client.Email} – validation fault");
+            _logger.LogWarning(ex, $"Client (coach): {client.Name} {client.Phone} {client.Email} – validation fault");
             await HandleValidationErrorAsync(ex, data, SaleType.Coach, client, agenda);
             return;
         }
@@ -164,8 +166,8 @@ public class CustomerService : ICustomerService
                         "<br /> Пожалуйста, свяжитесь с ним/ней";
         foreach (var worker in await _db.GetInnerEmailsAsync(coachNicknames: new[] { agenda.Trainer }, admins: true))
         {
-            await _mail.SendMailAsync(MailType.Inner, (worker.email, worker.name), "Занятия с Online-тренером: новый клиент", message2);
             await Task.Delay(2000);
+            await _mail.SendMailAsync(MailType.Inner, (worker.email, worker.name), "Занятия с Online-тренером: новый клиент", message2);
         }
 
         await _db.СompleteAsync(sale.Id);
@@ -255,18 +257,25 @@ public class CustomerService : ICustomerService
         _pdf.CreateNutrition(path, agenda, cpfc, diet);
         _logger.LogInformation($"Client (nutrition): nutrition {Name(path)} for {client.Email} calculated");
 
+        var nutrition = new MailService.FilePath("КБЖУ и рацион.pdf", path);
+        var recepies = new MailService.FilePath("Книга рецептов.pdf", Path.Combine("Resources", "Produced", "Recepies.pdf"));
+        var instructions = new MailService.FilePath("Инструкции.pdf", Path.Combine("Resources", "Produced", "Instructions.pdf"));
+
         switch (saleType)
         {
             case SaleType.Standart:
                 var message1 = "К данному письму приложен PDF документ,в котором находится КБЖУ и примерный рацион питания.";
-                await _mail.SendMailAsync(MailType.Success, (client.Email, client.Name), "Standart питание. КБЖУ + рацион", message1,
-                    ("КБЖУ и рацион.pdf", path));
+                BackgroundJob.Schedule(() =>
+                        _mail.SendMailAsync(MailType.Success, client.Email, client.Name, "Standart питание. КБЖУ + рацион", message1,
+                                            nutrition, instructions).Wait(),
+                        ScheduleHelper.GetSchedule());
                 break;
             case SaleType.Pro:
-                var recepiesPath = Path.Combine("Resources", "Produced", "Recepies.pdf");
                 var message2 = "К данному письму приложено два PDF документа. В одном из них находится КБЖУ и примерный рацион питания. В другом – рецепты.";
-                await _mail.SendMailAsync(MailType.Success, (client.Email, client.Name), "PRO питание + книга рецептов", message2,
-                    ("КБЖУ и рацион.pdf", path), ("Книга рецептов.pdf", recepiesPath));
+                BackgroundJob.Schedule(() =>
+                        _mail.SendMailAsync(MailType.Success, client.Email, client.Name, "PRO питание + книга рецептов", message2,
+                                            nutrition, instructions, recepies).Wait(),
+                        ScheduleHelper.GetSchedule());
                 break;
         }
 
@@ -341,8 +350,8 @@ public class CustomerService : ICustomerService
 
             foreach (var email in emails)
             {
-                await _mail.SendMailAsync(MailType.Inner, email, title, message);
                 await Task.Delay(2000);
+                await _mail.SendMailAsync(MailType.Inner, email, title, message);
             }
             _logger.LogInformation($"Mail (wp): Wp link for admins is sent");
         }
@@ -352,11 +361,13 @@ public class CustomerService : ICustomerService
             _db.Context.Sales.Update(sale);
             _logger.LogInformation($"Client (wp): wp for {sale.Client.Email} is exit. It's {sale.WorkoutProgram.Id} : {sale.WorkoutProgram.ProgramPath}");
 
-            await Task.Delay(1000);
-
+            //TODO: проверить отложенную отправку
             string subject = sale.Type is SaleType.Begginer ? "Begginer: готовая программа" : "Profi: готовая программа";
             string message = "Ваша персональная программа тренировок готова! Она прикреплена к данному сообщению.";
-            await _mail.SendMailAsync(MailType.Success, (sale.Client.Name, sale.Client.Email), subject, message, ("Персональная программа тренировок.pdf", wp.ProgramPath));
+            BackgroundJob.Schedule(() =>
+                _mail.SendMailAsync(MailType.Success, sale.Client.Email, sale.Client.Name, subject, message,
+                                    new MailService.FilePath("Персональная программа тренировок.pdf", wp.ProgramPath)).Wait(),
+                                    ScheduleHelper.GetSchedule());
             _logger.LogInformation($"Mail (wp): Wp sent to {sale.Client.Email} ({sale.Client.Phone})");
 
             await _db.СompleteAsync(sale.Id);
@@ -386,7 +397,7 @@ public class CustomerService : ICustomerService
             }
             catch (Exception e)
             {
-                _logger.LogWarning($"Admin (add wp): key {key} doesnt exits");
+                _logger.LogWarning(e, $"Admin (add wp): key {key} doesnt exits");
                 throw new CustomerExсeption("Указан некорректный ключ при добавлении программы. Воспользуйтесь отправленной в письме ссылкой.", e);
             }
 
@@ -396,7 +407,7 @@ public class CustomerService : ICustomerService
 
             string subject = sale.Type is SaleType.Begginer ? "Begginer: готовая программа" : "Profi: готовая программа";
             string message = "Ваша персональная программа тренировок готова! Она прикреплена к данному сообщению.";
-            await _mail.SendMailAsync(MailType.Success, (sale.Client.Name, sale.Client.Email), subject, message, ("Персональная программа тренировок.pdf", sale.WorkoutProgram.ProgramPath));
+            await _mail.SendMailAsync(MailType.Success, (sale.Client.Email, sale.Client.Name), subject, message, ("Персональная программа тренировок.pdf", sale.WorkoutProgram.ProgramPath));
             _logger.LogInformation($"Mail client (add wp): wp is sent to {sale.Client.Name}");
 
             await _db.СompleteAsync(sale.Id);
@@ -410,6 +421,15 @@ public class CustomerService : ICustomerService
         if (string.IsNullOrEmpty(base64string)) return;
         await Base64Helper.DecodeToPdf(base64string, path);
         _logger.LogInformation($"Admin (load recepies): recepies is loaded.");
+    }
+
+    private async Task LoadInstructionsAsync(Dictionary<string, string> data)
+    {
+        var path = Path.Combine("Resources", "Produced", "Instructions.pdf");
+        var base64string = data.Key("file");
+        if (string.IsNullOrEmpty(base64string)) return;
+        await Base64Helper.DecodeToPdf(base64string, path);
+        _logger.LogInformation($"Admin (load Instructions): Instructions is loaded.");
     }
 
     private void AddWorker(Dictionary<string, string> data)

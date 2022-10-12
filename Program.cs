@@ -1,12 +1,10 @@
 using Syracuse;
-using System.Text;
 using System.Globalization;
 using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.AspNetCore.WebUtilities;
 using AutoMapper;
 using FluentValidation;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+using Hangfire;
+using Hangfire.Storage.SQLite;
 
 CultureInfo.CurrentCulture = new CultureInfo("ru-RU");
 
@@ -27,6 +25,13 @@ var autoMapper = mappingConfig.CreateMapper();
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 builder.Services.AddLogging();
+
+builder.Services.AddHangfire(configuration => configuration
+    .UseSimpleAssemblyNameTypeSerializer()
+    .UseRecommendedSerializerSettings()
+    .UseSQLiteStorage("Resources/Hangfire.db"));
+builder.Services.AddHangfireServer();
+
 builder.Services.AddSingleton(autoMapper);
 builder.Services.AddScoped<IValidator<Client>, ClientValidator>();
 builder.Services.AddScoped<IValidator<Agenda>, AgendaValidator>();
@@ -34,6 +39,7 @@ builder.Services.AddScoped<ICustomerService, CustomerService>();
 builder.Services.AddScoped<IPdfService, PdfService>();
 builder.Services.AddScoped<IMailService, MailService>();
 builder.Services.AddScoped<IDbService, DbService>();
+
 builder.Services.AddCors(options =>
     options.AddDefaultPolicy(policy => policy.WithOrigins(
         "http://korablev-team.ru", "https://korablev-team.ru").AllowAnyMethod()));
@@ -46,7 +52,7 @@ WebApplication app = builder.Build();
 if (!app.Environment.IsDevelopment())
 {
     app.UseCors();
-    //app.UseHttpsRedirection();
+    app.UseHttpsRedirection();
     app.UseExceptionHandler(options =>
     {
         options.Run(
@@ -80,17 +86,28 @@ app.MapPost("/tilda", async (HttpContext context, ICustomerService customerServi
         return Results.Ok("test");
     }
 
-    context.Response.OnCompleted(() => Task.Run(async () =>
+    // context.Response.OnCompleted(() => Task.Run(async () =>
+    // {
+    //     try
+    //     {
+    //         await customerService.HandleTildaAsync(data);
+    //     }
+    //     catch (Exception e)
+    //     {
+    //         app.Logger.LogError($"T ERROR MESSAGE: {e.Message} \n INNER :{e.InnerException} \n SOURCE: {e.Source} \n STACKTRACE: {e.StackTrace}");
+    //     }
+    // }));
+
+    try
     {
-        try
-        {
-            await customerService.HandleTildaAsync(data);
-        }
-        catch (Exception e)
-        {
-            app.Logger.LogError($"T ERROR MESSAGE: {e.Message} \n INNER :{e.InnerException} \n SOURCE: {e.Source} \n STACKTRACE: {e.StackTrace}");
-        }
-    }));
+        await customerService.HandleTildaAsync(data);
+    }
+    catch (Exception e)
+    {
+        //app.Logger.LogError($"T ERROR MESSAGE: {e.Message} \n INNER :{e.InnerException} \n SOURCE: {e.Source} \n STACKTRACE: {e.StackTrace}");
+        app.Logger.LogError(e, "Error while handling Tilda");
+        Results.StatusCode(500);
+    }
 
     return Results.Ok();
 });
@@ -106,17 +123,28 @@ app.MapPost("/yandex", async (HttpContext context, YandexJsonrpc json, ICustomer
         return Results.Unauthorized(); ;
     }
 
-    context.Response.OnCompleted(() => Task.Run(async () =>
+    // context.Response.OnCompleted(() => Task.Run(async () =>
+    // {
+    //     try
+    //     {
+    //         await customerService.HandleYandexAsync(data);
+    //     }
+    //     catch (Exception e)
+    //     {
+    //         app.Logger.LogError($"Y ERROR MESSAGE: {e.Message} \n INNER :{e.InnerException} \n SOURCE: {e.Source} \n STACKTRACE: {e.StackTrace}");
+    //     }
+    // }));
+
+    try
     {
-        try
-        {
-            await customerService.HandleYandexAsync(data);
-        }
-        catch (Exception e)
-        {
-            app.Logger.LogError($"Y ERROR MESSAGE: {e.Message} \n INNER :{e.InnerException} \n SOURCE: {e.Source} \n STACKTRACE: {e.StackTrace}");
-        }
-    }));
+        await customerService.HandleYandexAsync(data);
+    }
+    catch (Exception e)
+    {
+        //app.Logger.LogError($"Y ERROR MESSAGE: {e.Message} \n INNER :{e.InnerException} \n SOURCE: {e.Source} \n STACKTRACE: {e.StackTrace}");
+        app.Logger.LogError(e, "Error while handling Yandex");
+        Results.StatusCode(500);
+    }
 
     return Results.Ok();
 });
@@ -163,18 +191,19 @@ app.MapGet("/wp", async (string token, IDbService db) =>
 });
 
 // --------------------------------------------------------------------------------
-
-app.MapGet("/env", () =>
+if (app.Environment.IsDevelopment())
 {
-    app.Logger.LogInformation("Env: API_TOKEN = {}", Environment.GetEnvironmentVariable("API_TOKEN"));
-    app.Logger.LogInformation("Env: UNIVERSAL_KEY = {}", Environment.GetEnvironmentVariable("UNIVERSAL_KEY"));
-    app.Logger.LogInformation("Env: MAIL_USER = {}", Environment.GetEnvironmentVariable("MAIL_USER"));
-    app.Logger.LogInformation("Env: MAIL_PASS = {}", Environment.GetEnvironmentVariable("MAIL_PASS"));
-    app.Logger.LogInformation("Env: MAIL_FAKE = {}", Environment.GetEnvironmentVariable("MAIL_FAKE"));
-    app.Logger.LogInformation("Env: MAIL_FROM_NAME = {}", Environment.GetEnvironmentVariable("MAIL_FROM_NAME"));
-    app.Logger.LogInformation("Env: MAIL_FROM_ADDR = {}", Environment.GetEnvironmentVariable("MAIL_FROM_ADDR"));
-});
-
+    app.MapGet("/env", () =>
+    {
+        app.Logger.LogInformation("Env: API_TOKEN = {}", Environment.GetEnvironmentVariable("API_TOKEN"));
+        app.Logger.LogInformation("Env: UNIVERSAL_KEY = {}", Environment.GetEnvironmentVariable("UNIVERSAL_KEY"));
+        app.Logger.LogInformation("Env: MAIL_USER = {}", Environment.GetEnvironmentVariable("MAIL_USER"));
+        app.Logger.LogInformation("Env: MAIL_PASS = {}", Environment.GetEnvironmentVariable("MAIL_PASS"));
+        app.Logger.LogInformation("Env: MAIL_FAKE = {}", Environment.GetEnvironmentVariable("MAIL_FAKE"));
+        app.Logger.LogInformation("Env: MAIL_FROM_NAME = {}", Environment.GetEnvironmentVariable("MAIL_FROM_NAME"));
+        app.Logger.LogInformation("Env: MAIL_FROM_ADDR = {}", Environment.GetEnvironmentVariable("MAIL_FROM_ADDR"));
+    });
+}
 // --------------------------------------------------------------------------------
 
 app.Run();

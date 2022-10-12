@@ -100,9 +100,9 @@ public class DbService : IDbService
                               where s.Key == key
                               select s).SingleAsync();
             }
-            catch
+            catch (Exception e)
             {
-                _logger.LogWarning($"Db (update sale): the key [{key}] is not found for [{client.Name}] ({client.Email})");
+                _logger.LogWarning(e, $"Db (update sale): the key [{key}] is not found for [{client.Name}] ({client.Email})");
                 throw new DbExсeption($"У клиента {client.Name} {client.Email} {client.Phone} неверный ключ для обновления его данных.");
                 // а был ли клиент, или это старый пишет. есть ли такой в бд?
             }
@@ -163,17 +163,6 @@ public class DbService : IDbService
             return await wpWithDeseases.FirstAsync();
     }
 
-    public async Task<Table> FindNonDoneSalesAsync(string separator)
-    {
-        var sales = from c in Context.Sales
-                    where c.IsDone == false
-                    select new List<string>() { c.Id.ToString(), $"{c.Client.Name}{separator}{c.Client.Email}{separator}{c.Client.Phone}", c.Type.ToString(), c.Time.ToString(), c.Key };
-        var table = new Table();
-        table.Titles = new() { "ID", "Клиент", "Тип", "Дата", "Ключ" };
-        table.Data = await sales.ToListAsync();
-        return table;
-    }
-
     public async Task<Table> FindWorkoutProgramsAsync(string separator)
     {
         var wps = from wp in Context.WorkoutPrograms
@@ -189,6 +178,18 @@ public class DbService : IDbService
         table.Data = await wps.ToListAsync();
         return table;
     }
+
+    public async Task<Table> FindNonDoneSalesAsync(string separator)
+    {
+        var sales = from c in Context.Sales
+                    where c.IsDone == false
+                    select new List<string>() { c.Id.ToString(), $"{c.Client.Name}{separator}{c.Client.Email}{separator}{c.Client.Phone}", c.Type.ToString(), c.Time.ToString(), c.Key };
+        var table = new Table();
+        table.Titles = new() { "ID", "Клиент", "Тип", "Дата", "Ключ" };
+        table.Data = await sales.ToListAsync();
+        return table;
+    }
+
 
     public async Task<Table> FindTeamAsync(string separator)
     {

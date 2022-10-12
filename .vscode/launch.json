@@ -15,19 +15,15 @@
             "cwd": "${workspaceFolder}",
             "stopAtEntry": false,
             // Enable launching a web browser when ASP.NET Core starts. For more information: https://aka.ms/VSCode-CS-LaunchJson-WebBrowser
-            "serverReadyAction": {
-                "action": "openExternally",
-                "pattern": "\\bNow listening on:\\s+(https?://\\S+)"
-            },
             "env": {
                 "ASPNETCORE_ENVIRONMENT": "Development",
                 "API_TOKEN": "f30677a6-0e15-4e64-87b0-2097a9fdd53a",
                 "UNIVERSAL_KEY": "5d7ca0a5-3740-45ba-8062-2086abc30a4c",
                 "MAIL_USER": "noreply@demo.nktdrkhv.ru",
-                "MAIL_PASS": "byzD2gYVX2ySJeSDSqQT",
+                "MAIL_PASS": "spivHfehK237GrGvmqE4",
                 "MAIL_FROM_NAME": "KorablevTeam",
                 "MAIL_FROM_ADDR": "noreply@demo.nktdrkhv.ru",
-                "MAIL_FAKE": "yes"
+                "MAIL_FAKE": "no"
             },
             "sourceFileMap": {
                 "/Views": "${workspaceFolder}/Views"

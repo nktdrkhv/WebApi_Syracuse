@@ -12,6 +12,7 @@ public class MailExсeption : Exception
     public MailExсeption(SerializationInfo info, StreamingContext context) : base(info, context) { }
 }
 
+[Serializable]
 public class PdfExсeption : Exception
 {
     public PdfExсeption() { }

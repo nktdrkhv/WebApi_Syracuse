@@ -8,13 +8,16 @@ namespace Syracuse;
 
 public interface IMailService
 {
+    Task SendMailAsync(MailType type, string addresseeEmail, string addresseeName, string subject, string message, params MailService.FilePath[] filePaths);
     Task SendMailAsync(MailType type, (string email, string name)[] addressee, string subject, string message, params (string name, string path)[] filePaths);
     Task SendMailAsync(MailType type, (string email, string name) addressee, string subject, string message, params (string name, string path)[] filePaths);
-    Task LoadAttachmentAsync(string key, string path);
+    //Task LoadAttachmentAsync(string key, string path);
 }
 
 public class MailService : IMailService, IAsyncDisposable
 {
+    public record FilePath(string name, string path);
+
     private ILogger<MailService> _logger;
     private bool _isInit = false;
 
@@ -61,12 +64,14 @@ public class MailService : IMailService, IAsyncDisposable
             await _smtpClient.AuthenticateAsync(s_user, s_password);
             _isInit = true;
         }
-        catch
+        catch (Exception e)
         {
             _logger.LogWarning("Mail (Init): problem with SMTP auth");
-            throw new MailExсeption("Ошибка при авторизации на SMTP сервере почты");
+            throw new MailExсeption("Ошибка при авторизации на SMTP сервере почты", e);
         }
     }
+
+    public async Task SendMailAsync(MailType type, string addresseeEmail, string addresseeName, string subject, string message, params MailService.FilePath[] filePaths) => await SendMailAsync(type, new[] { (addresseeEmail, addresseeName) }, subject, message, filePaths.Select(fp => (fp.name, fp.path)).ToArray());
 
     public async Task SendMailAsync(MailType type, (string email, string name) addressee, string subject, string message, params (string name, string path)[] filePaths) => await SendMailAsync(type, new[] { addressee }, subject, message, filePaths);
 
@@ -83,14 +88,15 @@ public class MailService : IMailService, IAsyncDisposable
                 MailType.Awaiting => await File.ReadAllTextAsync(s_awaitMailPath),
                 MailType.Failure => await File.ReadAllTextAsync(s_failureMailPath),
                 MailType.Inner => await File.ReadAllTextAsync(s_innerMailPath),
+                _ => throw new NotImplementedException(),
             };
 
             var htmlBody = html.Replace("TEXT", message);
             builder.HtmlBody = htmlBody;
         }
-        catch
+        catch (Exception e)
         {
-            _logger.LogWarning("Mail (html coad): problem with loading mail template");
+            _logger.LogWarning(e, "Mail (html coad): problem with loading mail template");
             throw new MailExсeption("Ошибка при загрузке шаблона письма");
         }
 
@@ -100,9 +106,9 @@ public class MailService : IMailService, IAsyncDisposable
                 foreach ((string name, string path) in filePaths)
                     builder.Attachments.Add(name, File.ReadAllBytes(path));
         }
-        catch
+        catch (Exception e)
         {
-            _logger.LogWarning($"Mail (add attchmnts): cant add attachment {filePaths.GetHashCode()}");
+            _logger.LogWarning(e, $"Mail (add attchmnts): cant add attachment {filePaths.GetHashCode()}");
             throw new MailExсeption("Ошибка при добавлении вложений в письмо");
         }
 
@@ -128,62 +134,62 @@ public class MailService : IMailService, IAsyncDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogWarning($"Mail (set properties and sending): problem with sending email. EX: {ex.Message}");
+            _logger.LogWarning(ex, $"Mail (set properties and sending): problem with sending email. EX: {ex.Message}");
             throw new MailExсeption("Ошибка при отправке сообщений", ex);
         }
     }
 
-    public async Task LoadAttachmentAsync(string subject, string path)
-    {
-        try
-        {
-            if (string.IsNullOrEmpty(subject)) throw new Exception("Не указана тема для загрузки");
+    // public async Task LoadAttachmentAsync(string subject, string path)
+    // {
+    //     try
+    //     {
+    //         if (string.IsNullOrEmpty(subject)) throw new Exception("Не указана тема для загрузки");
 
-            using var imapClient = new ImapClient();
-            imapClient.Connect(s_imapHost, s_imapPort, true);
-            imapClient.Authenticate(s_user, s_password);
+    //         using var imapClient = new ImapClient();
+    //         imapClient.Connect(s_imapHost, s_imapPort, true);
+    //         imapClient.Authenticate(s_user, s_password);
 
-            var inbox = imapClient.GetFolder("YandexForms");
-            await inbox.OpenAsync(FolderAccess.ReadWrite);
+    //         var inbox = imapClient.GetFolder("YandexForms");
+    //         await inbox.OpenAsync(FolderAccess.ReadWrite);
 
-            bool isDone = false;
-            var attemptCount = 0;
-            while (isDone is false)
-            {
-                if (++attemptCount == 5) throw new MailExсeption("Яндекс.Формы не отправили программу тренировок");
-                await Task.Delay(5000);
-                _logger.LogInformation($"Mail (load attch): #{attemptCount} try");
+    //         bool isDone = false;
+    //         var attemptCount = 0;
+    //         while (isDone is false)
+    //         {
+    //             if (++attemptCount == 5) throw new MailExсeption("Яндекс.Формы не отправили программу тренировок");
+    //             await Task.Delay(5000);
+    //             _logger.LogInformation($"Mail (load attch): #{attemptCount} try");
 
-                var notSeenUid = await inbox.SearchAsync(SearchQuery.NotSeen);
-                var fetches = await inbox.FetchAsync(notSeenUid, MessageSummaryItems.UniqueId | MessageSummaryItems.Envelope);
+    //             var notSeenUid = await inbox.SearchAsync(SearchQuery.NotSeen);
+    //             var fetches = await inbox.FetchAsync(notSeenUid, MessageSummaryItems.UniqueId | MessageSummaryItems.Envelope);
 
-                foreach (var fetch in fetches)
-                    if (fetch.Envelope.Subject.Equals(subject))
-                    {
-                        var message = inbox.GetMessage(fetch.UniqueId);
-                        var attachment = message.Attachments.FirstOrDefault(); ;
-                        using var fs = new FileStream(path, FileMode.OpenOrCreate); //
-                        if (attachment is null) throw new MailExсeption("Яндекс.Формы не приложили программу тренировок");
-                        ((MimePart)attachment).Content.DecodeTo(fs);
-                        isDone = true;
-                        await inbox.StoreAsync(fetch.UniqueId, new StoreFlagsRequest(StoreAction.Add, MessageFlags.Seen));
-                        break;
-                    }
-            }
+    //             foreach (var fetch in fetches)
+    //                 if (fetch.Envelope.Subject.Equals(subject))
+    //                 {
+    //                     var message = inbox.GetMessage(fetch.UniqueId);
+    //                     var attachment = message.Attachments.FirstOrDefault(); ;
+    //                     using var fs = new FileStream(path, FileMode.OpenOrCreate); //
+    //                     if (attachment is null) throw new MailExсeption("Яндекс.Формы не приложили программу тренировок");
+    //                     ((MimePart)attachment).Content.DecodeTo(fs);
+    //                     isDone = true;
+    //                     await inbox.StoreAsync(fetch.UniqueId, new StoreFlagsRequest(StoreAction.Add, MessageFlags.Seen));
+    //                     break;
+    //                 }
+    //         }
 
-            _logger.LogInformation($"Mail (load attch): done");
-            await inbox.CloseAsync(true);
-        }
-        catch (MailExсeption ex)
-        {
-            _logger.LogWarning("Mail (load attch): known issue");
-            throw new MailExсeption($"Ошибка при загрузке вложения. {ex.Message}");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning("Mail (load attch): uknown issue");
-            throw new MailExсeption($"Неизвестная ошибка при отправке вложения.", ex);
-        }
-    }
+    //         _logger.LogInformation($"Mail (load attch): done");
+    //         await inbox.CloseAsync(true);
+    //     }
+    //     catch (MailExсeption ex)
+    //     {
+    //         _logger.LogWarning("Mail (load attch): known issue");
+    //         throw new MailExсeption($"Ошибка при загрузке вложения. {ex.Message}");
+    //     }
+    //     catch (Exception ex)
+    //     {
+    //         _logger.LogWarning("Mail (load attch): uknown issue");
+    //         throw new MailExсeption($"Неизвестная ошибка при отправке вложения.", ex);
+    //     }
+    // }
 }
 
