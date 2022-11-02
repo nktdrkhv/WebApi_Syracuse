@@ -2,7 +2,7 @@
 
 namespace Syracuse;
 
-public record Contact
+public class Contact
 {
     public int Id { get; set; }
     public Worker Worker { get; set; }

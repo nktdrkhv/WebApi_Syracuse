@@ -105,7 +105,6 @@ public static class MatchHelper
         return sb.ToString();
     }
 
-
     // --------------------------------------------------------------------------------
 
     private static readonly Dictionary<int?, bool?> Archive_ValueToBool = new()
@@ -178,7 +177,9 @@ public static class MatchHelper
         ["Низкая активность"] = 5,
         ["Умеренная активность"] = 6,
         ["Высокая активность"] = 7,
+        ["Очень активные"] = 7,
         ["Очень высокая активность"] = 8,
+        ["Предельная активность"] = 8,
         ["https://static.tildacdn.com/tild6537-3335-4762-b236-653430616362/__.svg"] = 4,
         ["https://static.tildacdn.com/tild6263-3961-4663-b435-326333613432/__1-2__.svg"] = 5,
         ["https://static.tildacdn.com/tild6132-6366-4936-b736-616531383834/__1-2__-1.svg"] = 6,
@@ -221,6 +222,7 @@ public static class MatchHelper
         ["Почта"] = 25,
         ["Телефон"] = 26,
         ["Адрес"] = 27,
+
     };
 
     private static readonly Dictionary<SaleType?, string?> Archive_SaleTypeToErrorTitle = new()

@@ -25,6 +25,8 @@ public class ApplicationContext : DbContext
                     .HasAlternateKey(w => w.Nickname);
         modelBuilder.Entity<Sale>()
                     .HasIndex(s => s.Key).IsUnique();
+        modelBuilder.Entity<Sale>()
+                    .HasMany(s => s.Product);
         modelBuilder.Entity<Product>()
                     .HasIndex(s => s.Code).IsUnique();
     }
@@ -40,9 +42,9 @@ public interface IDbService : IAsyncDisposable
     AddWorkoutProgramAsync(WorkoutProgram workoutProgram);
     Task<WorkoutProgram?> FindWorkoutProgramAsync(WorkoutProgram workoutProgram);
     Task<WorkoutProgram?> FindWorkoutProgramAsync(Agenda agenda);
-    Task<Table> FindNonDoneSalesAsync(string separator);
-    Task<Table> FindWorkoutProgramsAsync(string separator);
-    Task<Table> FindTeamAsync(string separator);
+    Task<Table> GetNonDoneSalesAsync(string separator);
+    Task<Table> GetWorkoutProgramsAsync(string separator);
+    Task<Table> GetTeamAsync(string separator);
     Task<string> GetCoachContactsAsync(string coachNickname);
     Task<(string name, string email)[]> GetInnerEmailsAsync(string[] coachNicknames = null, bool admins = false);
 }
@@ -87,7 +89,7 @@ public class DbService : IDbService
                 _logger.LogInformation($"Db (new sale): [{client.Name}] ({client.Email}) is new");
             }
 
-            sale = new Sale { Client = client, Agenda = agenda, Type = saleType, Time = dateTime, IsDone = isDone, Key = key };
+            sale = new Sale { Client = client, Agenda = agenda, Type = saleType, PurchaseTime = dateTime, IsDone = isDone, Key = key };
             Context.Sales.Add(sale);
 
             _logger.LogInformation($"Db (new sale): sale [{sale.Id} – {sale.Type}] for {client.Name} ({client.Email})");
@@ -163,7 +165,8 @@ public class DbService : IDbService
             return await wpWithDeseases.FirstAsync();
     }
 
-    public async Task<Table> FindWorkoutProgramsAsync(string separator)
+
+    public async Task<Table> GetWorkoutProgramsAsync(string separator)
     {
         var wps = from wp in Context.WorkoutPrograms
                   select new List<string>() {
@@ -179,19 +182,18 @@ public class DbService : IDbService
         return table;
     }
 
-    public async Task<Table> FindNonDoneSalesAsync(string separator)
+    public async Task<Table> GetNonDoneSalesAsync(string separator)
     {
         var sales = from c in Context.Sales
                     where c.IsDone == false
-                    select new List<string>() { c.Id.ToString(), $"{c.Client.Name}{separator}{c.Client.Email}{separator}{c.Client.Phone}", c.Type.ToString(), c.Time.ToString(), c.Key };
+                    select new List<string>() { c.Id.ToString(), $"{c.Client.Name}{separator}{c.Client.Email}{separator}{c.Client.Phone}", c.Type.ToString(), c.PurchaseTime.ToString(), c.Key };
         var table = new Table();
         table.Titles = new() { "ID", "Клиент", "Тип", "Дата", "Ключ" };
         table.Data = await sales.ToListAsync();
         return table;
     }
 
-
-    public async Task<Table> FindTeamAsync(string separator)
+    public async Task<Table> GetTeamAsync(string separator)
     {
         var team = from w in Context.Workers
                    select new List<string>() { w.Nickname, w.Name, w.Contacts.AsInfoString(separator), w.Admin ? "Да" : "Нет" };

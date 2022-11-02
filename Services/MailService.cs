@@ -26,10 +26,10 @@ public class MailService : IMailService, IAsyncDisposable
     private static readonly string s_failureMailPath = Path.Combine("Resources", "Templates", "failure-mail.html");
     private static readonly string s_innerMailPath = Path.Combine("Resources", "Templates", "inner-mail.html");
 
-    private static readonly string s_imapHost = "imap.mail.ru";
+    //private static readonly string s_imapHost = "imap.mail.ru";
     private static readonly string s_smtpHost = "smtp.mail.ru";
     private static readonly int s_smtpPort = 465;
-    private static readonly int s_imapPort = 993;
+    //private static readonly int s_imapPort = 993;
 
     private static string s_user => Environment.GetEnvironmentVariable("MAIL_USER");
     private static string s_password => Environment.GetEnvironmentVariable("MAIL_PASS");
@@ -49,6 +49,7 @@ public class MailService : IMailService, IAsyncDisposable
         if (_smtpClient is not null)
         {
             await _smtpClient.DisconnectAsync(true);
+            _smtpClient.Dispose();
             _logger.LogInformation("Mail (dispose): disposed");
         }
     }
@@ -59,6 +60,7 @@ public class MailService : IMailService, IAsyncDisposable
 
         try
         {
+
             _smtpClient = new SmtpClient();
             await _smtpClient.ConnectAsync(s_smtpHost, s_smtpPort, true);
             await _smtpClient.AuthenticateAsync(s_user, s_password);

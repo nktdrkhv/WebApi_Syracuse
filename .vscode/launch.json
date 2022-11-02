@@ -23,7 +23,7 @@
                 "MAIL_PASS": "spivHfehK237GrGvmqE4",
                 "MAIL_FROM_NAME": "KorablevTeam",
                 "MAIL_FROM_ADDR": "noreply@demo.nktdrkhv.ru",
-                "MAIL_FAKE": "no"
+                "MAIL_FAKE": "yes"
             },
             "sourceFileMap": {
                 "/Views": "${workspaceFolder}/Views"

@@ -4,7 +4,7 @@ using AutoMapper;
 
 namespace Syracuse;
 
-public record Client
+public class Client
 {
     public int Id { get; set; } = default;
     public string Email { get; set; } = default;

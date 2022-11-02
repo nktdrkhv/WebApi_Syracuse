@@ -68,23 +68,22 @@ if (!app.Environment.IsDevelopment())
 
 // --------------------------------------------------------------------------------
 
-app.MapPost("/tilda", async (HttpContext context, ICustomerService customerService) =>
+app.MapPost("/tilda", async (HttpContext context, TildaOrder json, ICustomerService customerService) =>
 {
-    IFormCollection requestForm = context.Request.Form;
-    var data = requestForm.ToDictionary(x => x.Key.ToLower(), x => x.Value.ToString());
-    app.Logger.LogInformation(message: LogHelper.RawData(data));
-
-    if (!string.Equals(data.Key("token"), KeyHelper.ApiToken))
-    {
-        app.Logger.LogInformation($"Unauthorized: post tilda");
+    if (!string.Equals(json.Token, KeyHelper.ApiToken))
         return Results.Unauthorized();
-    }
 
-    if (data.Key("test") == "test")
-    {
-        app.Logger.LogInformation("External testing of a TILDA webhook");
+    if (json.Test == "test")
         return Results.Ok("test");
-    }
+
+    var data = new Dictionary<string, string>();
+    data["name"] = json.Name;
+    data["email"] = json.Email;
+    data["phone"] = json.Email;
+    data["orderid"] = json.Payment.OrderId;
+    //var product = json.
+
+    app.Logger.LogInformation(message: LogHelper.RawData(data));
 
     // context.Response.OnCompleted(() => Task.Run(async () =>
     // {
@@ -104,7 +103,6 @@ app.MapPost("/tilda", async (HttpContext context, ICustomerService customerServi
     }
     catch (Exception e)
     {
-        //app.Logger.LogError($"T ERROR MESSAGE: {e.Message} \n INNER :{e.InnerException} \n SOURCE: {e.Source} \n STACKTRACE: {e.StackTrace}");
         app.Logger.LogError(e, "Error while handling Tilda");
         Results.StatusCode(500);
     }
@@ -112,7 +110,7 @@ app.MapPost("/tilda", async (HttpContext context, ICustomerService customerServi
     return Results.Ok();
 });
 
-app.MapPost("/yandex", async (HttpContext context, YandexJsonrpc json, ICustomerService customerService) =>
+app.MapPost("/yandex", async (HttpContext context, YandexJsonRpc json, ICustomerService customerService) =>
 {
     var data = json.Params;
     app.Logger.LogInformation(message: LogHelper.RawData(data));
@@ -141,7 +139,6 @@ app.MapPost("/yandex", async (HttpContext context, YandexJsonrpc json, ICustomer
     }
     catch (Exception e)
     {
-        //app.Logger.LogError($"Y ERROR MESSAGE: {e.Message} \n INNER :{e.InnerException} \n SOURCE: {e.Source} \n STACKTRACE: {e.StackTrace}");
         app.Logger.LogError(e, "Error while handling Yandex");
         Results.StatusCode(500);
     }
@@ -157,7 +154,7 @@ app.MapGet("/", (HttpContext context) =>
     return Results.Ok("These Are Not the Droids You Are Looking For");
 });
 
-app.MapGet("/nondone", async (string token, IDbService db) =>
+app.MapGet("admin/{table}", async (string table, string? token, IDbService db) =>
 {
     if (token != KeyHelper.ApiToken)
     {
@@ -165,29 +162,23 @@ app.MapGet("/nondone", async (string token, IDbService db) =>
         return Results.Unauthorized();
     }
 
-    return Results.Json(await db.FindNonDoneSalesAsync("<br />"));
+    var handler = table switch
+    {
+        "nondone" => db.GetNonDoneSalesAsync("<br/>"),
+        "team" => db.GetTeamAsync("<br/>"),
+        "wp" => db.GetWorkoutProgramsAsync("<br/>"),
+        _ => Task.FromResult(new Table()),
+    };
+
+    return Results.Json(await handler);
 });
 
-app.MapGet("/team", async (string token, IDbService db) =>
+app.MapGet("price/{product}", (string product) =>
 {
-    if (token != KeyHelper.ApiToken)
-    {
-        app.Logger.LogInformation($"Unauthorized: get team");
-        return Results.Unauthorized();
-    }
-
-    return Results.Json(await db.FindTeamAsync("<br />"));
-});
-
-app.MapGet("/wp", async (string token, IDbService db) =>
-{
-    if (token != KeyHelper.ApiToken)
-    {
-        app.Logger.LogInformation($"Unauthorized: get wp");
-        return Results.Unauthorized();
-    }
-
-    return Results.Json(await db.FindWorkoutProgramsAsync("<br />"));
+    using var context = new ApplicationContext();
+    var price = context.Products.Where(p => p.Code == product).Select(p => p.Price).SingleOrDefault();
+    app.Logger.LogInformation($"Price for [{product}] is [{price}] rubles");
+    return Results.Ok(price);
 });
 
 // --------------------------------------------------------------------------------

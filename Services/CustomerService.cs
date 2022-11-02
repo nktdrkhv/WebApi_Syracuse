@@ -87,6 +87,102 @@ public class CustomerService : ICustomerService
     }
 
     // --------------------------------------------------------------------------------
+    #region BaseActions
+
+    private void Map(SaleType type, Dictionary<string, string> data, out Client? client, out Agenda? agenda)
+    {
+        switch (type)
+        {
+            case SaleType.Begginer:
+            case SaleType.Profi:
+            case SaleType.Standart:
+            case SaleType.Pro:
+            case SaleType.Coach:
+                client = _mapper.Map<Dictionary<string, string>, Client>(data);
+                agenda = _mapper.Map<Dictionary<string, string>, Agenda>(data);
+                _logger.LogInformation($"Client ({type.ToString()}): {client.Name} {client.Phone} {client.Email} is mapped");
+                break;
+            case SaleType.Posing:
+            case SaleType.Endo:
+                client = _mapper.Map<Dictionary<string, string>, Client>(data);
+                agenda = null;
+                _logger.LogInformation($"Client ({type.ToString()}): {client.Name} {client.Phone} {client.Email} is mapped");
+                break;
+            case SaleType.WorkoutProgram:
+
+            default:
+                throw new ArgumentException();
+        }
+    }
+    private async Task<bool> Validate(SaleType type, Dictionary<string, string> data, Client? client, Agenda? agenda)
+    {
+        try
+        {
+            if (agenda is not null)
+            {
+                (_agendaValidator as AgendaValidator).SaleType = type;
+                await _agendaValidator.ValidateAndThrowAsync(agenda);
+            }
+
+            if (client is not null)
+                await _clientValidator.ValidateAndThrowAsync(client);
+
+            _logger.LogInformation($"Client ({type.ToString()}): {client.Name} {client.Phone} {client.Email} is validated");
+            return true;
+        }
+        catch (ValidationException ex)
+        {
+            _logger.LogWarning(ex, $"Client ({type.ToString()}): {client.Name} {client.Phone} {client.Email} – validation fault");
+            await HandleValidationErrorAsync(ex, data, type, client, agenda);
+            return false;
+        }
+    }
+
+    static CustomerService()
+    {
+        RecurringJob.AddOrUpdate("notify-admins", () => NotifyAdminsAsync(), Cron.Minutely);
+        RecurringJob.AddOrUpdate("send-out-products-to-customers", () => SendOutProductsAsync(), Cron.Minutely);
+    }
+
+    private static async Task NotifyAdminsAsync()
+    {
+
+    }
+
+    private static async Task SendOutProductsAsync()
+    {
+
+    }
+
+    private async Task SendSuccessfulPurchaseMailAsync(SaleType type, Client client, Agenda? agenda = null)
+    {
+        switch (type)
+        {
+            case SaleType.Begginer:
+                break;
+            case SaleType.Profi:
+                break;
+            case SaleType.Standart:
+                break;
+            case SaleType.Pro:
+                break;
+            case SaleType.Coach:
+                var messageCoach = $"В течение следующего дня (в выходные может потребоваться больше времени) наш тренер свяжется с вами для начала тренировок. <br />Контакты тренера:<br />{await _db.GetCoachContactsAsync(agenda?.Trainer) ?? "<i>не указаны</i>"}";
+                await _mail.SendMailAsync(MailType.Success, client.Email, client.Name, "Занятия с Online-тренером", messageCoach);
+                _logger.LogInformation($"Mail (coach): sent to {client.Email}");
+                break;
+            case SaleType.Endo:
+                var messageEndo = $"В течение следующего дня (в выходные может потребоваться больше времени) наш эндокринолог свяжется с вами для консультации";
+                await _mail.SendMailAsync(MailType.Success, client.Email, client.Name, "Консультация эндокринолога", messageEndo);
+                _logger.LogInformation($"Mail (endo): sent to {client.Email}");
+                break;
+            default:
+                throw new ArgumentException();
+        }
+    }
+
+    #endregion BaseActions
+    // --------------------------------------------------------------------------------
     #region TildaHandlersMain
 
     private async Task HandleBegginerFormAsync(Dictionary<string, string> data) => await HandleWorkoutProgramAsync(data, SaleType.Begginer);
@@ -104,14 +200,10 @@ public class CustomerService : ICustomerService
 
     private async Task HandleEndoFormAsync(Dictionary<string, string> data)
     {
-        var client = _mapper.Map<Dictionary<string, string>, Client>(data);
-        _logger.LogInformation($"Client (endo): {client.Name} {client.Phone} {client.Email} is mapped");
-
+        Map(SaleType.Endo, data, out var client, out _);
         await _db.AddSaleAsync(client, null, SaleType.Endo, DateTime.UtcNow, true);
 
-        var message1 = $"В течение следующего дня (в выходные может потребоваться больше времени) наш эндокринолог свяжется с вами для консультации";
-        await _mail.SendMailAsync(MailType.Success, (client.Email, client.Name), "Консультация эндокринолога", message1);
-        _logger.LogInformation($"Mail (endo): sent to {client.Email}");
+        await SendSuccessfulPurchaseMailAsync(SaleType.Endo, client);
 
         var message2 = $"Новый клиент на консультацию эндокринолога: <br /> {LogHelper.ClientInfo(client).Replace("\n", "<br />")} <br /> Пожалуйста, свяжитесь с ним/ней";
         foreach (var worker in await _db.GetInnerEmailsAsync(admins: true))
@@ -124,25 +216,10 @@ public class CustomerService : ICustomerService
 
     private async Task HandleCoachFormAsync(Dictionary<string, string> data)
     {
-        /// Маппинг в унифицированный DTO
-        var agenda = _mapper.Map<Dictionary<string, string>, Agenda>(data);
-        var client = _mapper.Map<Dictionary<string, string>, Client>(data);
+        Map(SaleType.Coach, data, out var client, out var agenda);
         _logger.LogInformation($"Client (coach): {client.Name} {client.Phone} {client.Email} is mapped");
-
-        try
-        {
-            /// Валидация
-            (_agendaValidator as AgendaValidator).SaleType = SaleType.Coach;
-            await _agendaValidator.ValidateAndThrowAsync(agenda);
-            await _clientValidator.ValidateAndThrowAsync(client);
-            _logger.LogInformation($"Client (coach): {client.Name} {client.Phone} {client.Email} is validated");
-        }
-        catch (ValidationException ex)
-        {
-            _logger.LogWarning(ex, $"Client (coach): {client.Name} {client.Phone} {client.Email} – validation fault");
-            await HandleValidationErrorAsync(ex, data, SaleType.Coach, client, agenda);
+        if (!await Validate(SaleType.Coach, data, client, agenda))
             return;
-        }
 
         /// Добавление данных в БД: новых записей или обновление старых при наличие ключа
         string? key = data.Key("key");
@@ -154,11 +231,7 @@ public class CustomerService : ICustomerService
             key: key);
         _logger.LogInformation($"Db (coach): {client.Email} with key [{key}] added data to db");
 
-        // ОТЛОВИТЬ ИСКЛЮЧЕНМЯ
-        /// Отправка сообщения клиенту
-        var message1 = $"В течение следующего дня (в выходные может потребоваться больше времени) наш тренер свяжется с вами для начала тренировок. <br />Контакты тренера:<br />{await _db.GetCoachContactsAsync(agenda.Trainer)}";
-        await _mail.SendMailAsync(MailType.Awaiting, (client.Email, client.Name), "Занятия с Online-тренером", message1);
-        _logger.LogInformation($"Mail (coach): sent to {client.Email}");
+        await SendSuccessfulPurchaseMailAsync(SaleType.Coach, client, agenda);
 
         /// Отправка сообщений тренеру и администраторам
         var message2 = "Новый клиент на онлайн-тренировки: <br />" +
@@ -175,27 +248,13 @@ public class CustomerService : ICustomerService
     }
 
     #endregion
-    // --------------------------------------------------------------------------------
+    // -------------------------------------------------------------------------------
 
     private async Task HandleWorkoutProgramAsync(Dictionary<string, string> data, SaleType saleType)
     {
-        var agenda = _mapper.Map<Dictionary<string, string>, Agenda>(data);
-        var client = _mapper.Map<Dictionary<string, string>, Client>(data);
-        _logger.LogInformation($"Client (workout): {client.Name} {client.Phone} {client.Email} is mapped");
-
-        try
-        {
-            (_agendaValidator as AgendaValidator).SaleType = saleType;
-            await _agendaValidator.ValidateAndThrowAsync(agenda);
-            await _clientValidator.ValidateAndThrowAsync(client);
-            _logger.LogInformation($"Client (workout): {client.Name} {client.Phone} {client.Email} is validated");
-        }
-        catch (ValidationException ex)
-        {
-            _logger.LogWarning($"Client (workout): {client.Name} {client.Phone} {client.Email} – validation fault");
-            await HandleValidationErrorAsync(ex, data, saleType, client, agenda);
+        Map(saleType, data, out var client, out var agenda);
+        if (!await Validate(saleType, data, client, agenda))
             return;
-        }
 
         var key = data.Key("key");
         key = key?.Equals(KeyHelper.UniversalKey) is true ? null : key;
@@ -224,23 +283,9 @@ public class CustomerService : ICustomerService
 
     private async Task HandleNutritionAsync(Dictionary<string, string> data, SaleType saleType)
     {
-        var agenda = _mapper.Map<Dictionary<string, string>, Agenda>(data);
-        var client = _mapper.Map<Dictionary<string, string>, Client>(data);
-        _logger.LogInformation($"Client (nutrition): {client.Name} {client.Phone} {client.Email} is mapped");
-
-        try
-        {
-            (_agendaValidator as AgendaValidator).SaleType = saleType;
-            await _agendaValidator.ValidateAndThrowAsync(agenda);
-            await _clientValidator.ValidateAndThrowAsync(client);
-            _logger.LogInformation($"Client (nutrition): {client.Name} {client.Phone} {client.Email} is validated");
-        }
-        catch (ValidationException ex)
-        {
-            _logger.LogWarning($"Client (nutrition): {client.Name} {client.Phone} {client.Email} – validation fault");
-            await HandleValidationErrorAsync(ex, data, saleType, client, agenda);
+        Map(saleType, data, out var client, out var agenda);
+        if (!await Validate(saleType, data, client, agenda))
             return;
-        }
 
         string? key = data.Key("key");
         key = key?.Equals(KeyHelper.UniversalKey) is true ? null : key;
@@ -266,15 +311,13 @@ public class CustomerService : ICustomerService
             case SaleType.Standart:
                 var message1 = "К данному письму приложен PDF документ,в котором находится КБЖУ и примерный рацион питания.";
                 BackgroundJob.Schedule(() =>
-                        _mail.SendMailAsync(MailType.Success, client.Email, client.Name, "Standart питание. КБЖУ + рацион", message1,
-                                            nutrition, instructions).Wait(),
+                        _mail.SendMailAsync(MailType.Success, client.Email, client.Name, "Standart питание. КБЖУ + рацион", message1, nutrition, instructions).Wait(),
                         ScheduleHelper.GetSchedule());
                 break;
             case SaleType.Pro:
                 var message2 = "К данному письму приложено два PDF документа. В одном из них находится КБЖУ и примерный рацион питания. В другом – рецепты.";
                 BackgroundJob.Schedule(() =>
-                        _mail.SendMailAsync(MailType.Success, client.Email, client.Name, "PRO питание + книга рецептов", message2,
-                                            nutrition, instructions, recepies).Wait(),
+                        _mail.SendMailAsync(MailType.Success, client.Email, client.Name, "PRO питание + книга рецептов", message2, nutrition, instructions, recepies).Wait(),
                         ScheduleHelper.GetSchedule());
                 break;
         }
@@ -314,10 +357,12 @@ public class CustomerService : ICustomerService
             _logger.LogDebug(sale.Agenda.ToString());
         }
 
+        /// Формирование ссылки для перезаполнения
         var gettersInfo = MatchHelper.TransformToValues(sale);
         var link = UrlHelper.MakeLink(saleType, gettersInfo);
         _logger.LogInformation($"Client (validation of [{saleType}]): ReInput link for [{client.Email}] is [{link}]");
 
+        /// Формирование и отправка письма
         var sb = new StringBuilder()
             .AppendLine("При заполнении анкеты произошла ошибка: <br />");
         foreach (var error in ex.Errors)
@@ -434,21 +479,21 @@ public class CustomerService : ICustomerService
 
     private void AddWorker(Dictionary<string, string> data)
     {
-        Worker worker = default;
         try
         {
-            worker = _mapper.Map<Worker>(data);
-            worker.Contacts = new();
-            worker.Contacts.Add(new Contact() { Type = ContactType.Email, Info = data.Key("email"), Worker = worker });
-            if (data.Key("phone") is not null)
-                worker.Contacts.Add(new Contact() { Type = ContactType.Phone, Info = data.Key("phone"), Worker = worker });
-            _db.Context.Workers.Add(worker);
+            var worker = _mapper.Map<Worker>(data);
+            if (string.IsNullOrWhiteSpace(worker.Name) && string.IsNullOrWhiteSpace(worker.Nickname))
+            {
+                _db.Context.Workers.Add(worker);
+                _logger.LogInformation($"Admin (add woker); [{worker.Name}] is added");
+            }
+            else
+                _logger.LogInformation($"Admin (add woker); worker is not added");
         }
-        catch
+        catch (Exception e)
         {
-            _logger.LogError($"Admin (add woker): error. [{worker.Name ?? "Worker"}] is not added");
+            _logger.LogError(e, $"Admin (add woker): error. worker is not added");
         }
-        _logger.LogInformation($"Admin (add woker); [{worker.Name}] is added");
     }
 
     private void DeleteWorker(Dictionary<string, string> data)
@@ -473,9 +518,14 @@ public class CustomerService : ICustomerService
         }
 
         var contact = _mapper.Map<Contact>(data);
-        contact.Worker = worker;
-        _db.Context.Contacts.Add(contact);
-        _logger.LogInformation($"Admin (add contact): [{worker.Name}] has new [{contact.Type}] is [{contact.Info}]");
+        if (string.IsNullOrWhiteSpace(contact.Info))
+        {
+            contact.Worker = worker;
+            _db.Context.Contacts.Add(contact);
+            _logger.LogInformation($"Admin (add contact): [{worker.Name}] has new [{contact.Type}] is [{contact.Info}]");
+        }
+        else
+            _logger.LogInformation($"Admin (add contact): contacts for [{worker.Name}] is not added");
     }
 
     private void DeleteContact(Dictionary<string, string> data)

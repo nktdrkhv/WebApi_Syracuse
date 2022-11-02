@@ -2,7 +2,7 @@
 
 namespace Syracuse;
 
-public record WorkoutProgram
+public class WorkoutProgram
 {
     public int Id { get; set; }
     public bool IgnoreDiseases { get; set; }

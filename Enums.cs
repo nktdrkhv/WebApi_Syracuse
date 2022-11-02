@@ -2,7 +2,8 @@
 
 public enum SaleType
 {
-    Begginer, Profi, Standart, Pro, Coach, Posing, Endo,
+    Begginer, Profi, Standart, Pro, Coach,
+    Posing, Endo,
     WorkoutProgram,
 }
 

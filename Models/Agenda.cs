@@ -4,7 +4,7 @@ using AutoMapper;
 
 namespace Syracuse;
 
-public record Agenda
+public class Agenda
 {
     public int Id { get; set; } = default;
     public string? Gender { get; set; } = default;

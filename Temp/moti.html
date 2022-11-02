@@ -1,0 +1,173 @@
+<style>
+  /*Задаём стили для параметров товара*/
+  .t706__product-title div {
+    font-size: 12px;
+    font-weight: 300;
+    opacity: 0.8;
+  }
+</style>
+
+<!-- https://romanyu.ru/udalenie-knopki-formy-zero-block -->
+<style>
+  #rec501013131 .tn-form__submit {
+    display: none;
+  }
+</style>
+
+<script>
+  $(function () {
+    /* Укажи id блока, в котором находится форма */
+    const blockId = '#rec501013131';
+
+    let timerRemoveSubmit = setInterval(function () {
+      $(blockId + ' .tn-form__submit').remove();
+    }, 100);
+
+    setTimeout(function () {
+      clearInterval(timerRemoveSubmit);
+    }, 5000);
+  })
+</script>
+
+<script>
+  function getMeaning(t) {
+    switch (t) {
+      //gender
+      case 'https://static.tildacdn.com/tild3661-3562-4133-a230-616233613238/man.svg':
+        return ('Мужчина');
+      case 'https://static.tildacdn.com/tild6165-6563-4335-a361-333038333538/woman.svg':
+        return ('Женщина');
+      //purpouse
+      case 'https://static.tildacdn.com/tild6236-3236-4732-a434-656636626630/photo.svg':
+        return ('Похудение');
+      case 'https://static.tildacdn.com/tild3065-6233-4963-b833-613334333637/photo.svg':
+        return ('Поддержание');
+      case 'https://static.tildacdn.com/tild6263-6632-4235-b537-333561333539/photo.svg':
+        return ('Набор');
+      //daily_activity
+      case 'https://static.tildacdn.com/tild6537-3335-4762-b236-653430616362/__.svg':
+        return ('Малоподвижный образ жизни');
+      case 'https://static.tildacdn.com/tild6263-3961-4663-b435-326333613432/__1-2__.svg':
+        return ('Низкая активность');
+      case 'https://static.tildacdn.com/tild6132-6366-4936-b736-616531383834/__1-2__-1.svg':
+        return ('Умеренная активность');
+      case 'https://static.tildacdn.com/tild3264-6662-4430-a236-333638356138/__1-2__-4.svg':
+        return ('Очень активные');
+      case 'https://static.tildacdn.com/tild3030-6337-4631-b735-626566386537/__1-2__-2.svg':
+        return ('Предельная активность');
+      //activity_level
+      case 'https://static.tildacdn.com/tild3438-3638-4661-a137-383266373862/2.svg':
+        return ('2');
+      case 'https://static.tildacdn.com/tild3131-3036-4637-b561-393365626135/3.svg':
+        return ('3');
+      case 'https://static.tildacdn.com/tild6566-6333-4366-b838-633263336164/4.svg':
+        return ('4');
+      case 'https://static.tildacdn.com/tild6331-6233-4933-b365-343363643138/5.svg':
+        return ('5');
+      //focus
+      case 'https://static.tildacdn.com/tild3835-3566-4137-b462-343935626435/photo.svg':
+        return ('Плечи');
+      case 'https://static.tildacdn.com/tild3061-3565-4166-a436-323438646266/photo.svg':
+        return ('Спина');
+      case 'https://static.tildacdn.com/tild3366-6235-4461-a164-346131656538/photo.svg':
+        return ('Ягодицы');
+      case 'https://static.tildacdn.com/tild3766-3536-4931-a437-333134626330/photo.svg':
+        return ('Ноги');
+      //trainers
+      case 'https://static.tildacdn.com/tild3535-6539-4931-b430-303034623030/alex.jpg':
+        return ('Алексей');
+      case 'https://static.tildacdn.com/tild3831-3131-4432-b136-613537623639/anton.jpg':
+        return ('Антон');
+      case 'https://static.tildacdn.com/tild6361-6430-4539-b937-303961316361/andrey.jpg':
+        return ('Андрей');
+      case 'https://static.tildacdn.com/tild3462-3736-4765-b163-636366316163/mariya.jpg':
+        return ('Мария');
+      case 'https://static.tildacdn.com/tild6561-6232-4638-b834-643563653562/katya.jpg':
+        return ('Екатерина');
+      //prices
+      case 'Алексей':
+        return (7000);
+      case 'Антон':
+        return (8000);
+      case 'Андрей':
+        return (6000);
+      case 'Мария':
+        return (6000);
+      case 'Екатерина':
+        return (5000);
+    }
+  }
+
+  $(document).ready(function () {
+    //Функция форматирования параметров 
+    function rewritecarttitle() {
+      setTimeout(function () {
+        $('.t706__product-title').each(function () {
+          var $this = $(this);
+          var newText = $this.text().replace(/\*\*([^*]+)\*\*/g, '<div>$1</div>').replace(/\*\*/g, '');
+          $this.html(newText);
+        });
+      }, 50);
+    };
+    //При открытии корзины запускаем функцию форматирования параметров 
+    $("[href = #order] , .t706__carticon-wrapper").click(function () { rewritecarttitle(); });
+
+    //При удалении товара запускаем функцию форматирования параметров  
+    $(document).on('click', '.t706__product-del', function (e) { rewritecarttitle(); });
+
+    /*-------------------------------------------------------------------------------------------------*/
+
+    //Функция формирования состава продукта
+    function createproduct() {
+      var gender = getMeaning($(product + ' [name="gender"]:checked').val());
+      var age = $(product + ' [name="age"]').val();
+      var height = $(product + ' [name="height"]').val();
+      var weight = $(product + ' [name="weight"]').val();
+      var purpouse = getMeaning($(product + ' [name="purpouse"]:checked').val());
+      var daily_activity = getMeaning($(product + ' [name="daily_activity"]:checked').val());
+      var activity_level = getMeaning($(product + ' [name="activity_level"]:checked').val());
+      var focus = getMeaning($(product + ' [name="focus"]:checked').val());
+      var diseases = '';
+      $(product + ' [type="checkbox"]:checked').each(function () {
+        diseases = diseases + ($(this).val() + ';');
+      });
+      var trainer = getMeaning($(product + ' [name="trainer"]:checked').val());
+      var trainerPrice = getMeaning(trainer);
+
+      var itogo = $(product + ' input[name="sweetsum"]').val();
+      var sphere = $(product + ' .t-range__value-txt:eq(0)').text();
+      var formobj = $('[name="sweetform"]').val();//Получаем вид шара
+      var tassap = $(product + ' .t-range__value-txt:eq(1)').text();
+
+      var url = '#order:Онлайн-занятия с тренером:' +
+        '**Пол ~' + gender + '** ' +
+        '**Возраст ~' + age + '** ' +
+        '**Рост ~' + height + '** ' +
+        '**Вес ~' + weight + '** ' +
+        '**Цель тренировок ~' + purpouse + '** ' +
+        '**Еженедельная активность ~' + daily_activity + '** ' +
+        '**Уровень активности ~' + activity_level + '** ' +
+        '**Акцент группы мышц ~' + focus + '** ' +
+        '**Заболевания ~' + diseases + '** ' +
+        '**Тренер ~' + trainer + '** ' +
+        '=' + trainerPrice;
+
+
+      //$('.send-cart .tn-atom').attr('href', '#order:Сладкий стол- **Гирлянда из шаров-' + sphere + 'м** **Шары-"' + formobj + '"** **Гирлянда "Тассап"-' + tassap + 'м**= ' + itogo + ':::image=https://static.tildacdn.com/tild3231-3364-4637-b633-633534616163/CHxctovkOy0.jpg');
+      $('.send-cart .tn-atom').attr('href', url);
+      rewritecarttitle(); //Вызываем функцию форматирования параметров
+    };
+
+    /*-------------------------------------------------------------------------------------------------*/
+
+    //Задаём ID нашего Zero    
+    var product = '#rec501013131';
+    //При клике в нашем Zero  
+    $(document).on('mouseup', product, function (e) {
+      createproduct();
+    });
+
+
+    $(document).on("keydown", ".t-form", function (event) { return event.key != "Enter"; });
+  });
+</script>
