@@ -18,18 +18,18 @@ public class Agenda
     public string? Diseases { get; set; } = default;
     public string? Trainer { get; set; } = default;
 
-    public Agenda UpdateWith(Agenda agenda)
+    public Agenda UpdateWith(Agenda? agenda)
     {
-        Gender = agenda.Gender;
-        Age = agenda.Age;
-        Height = agenda.Height;
-        Weight = agenda.Weight;
-        ActivityLevel = agenda.ActivityLevel;
-        DailyActivity = agenda.DailyActivity;
-        Purpouse = agenda.Purpouse;
-        Focus = agenda.Focus;
-        Diseases = agenda.Diseases;
-        Trainer = agenda.Trainer;
+        Gender = agenda?.Gender;
+        Age = agenda?.Age;
+        Height = agenda?.Height;
+        Weight = agenda?.Weight;
+        ActivityLevel = agenda?.ActivityLevel;
+        DailyActivity = agenda?.DailyActivity;
+        Purpouse = agenda?.Purpouse;
+        Focus = agenda?.Focus;
+        Diseases = agenda?.Diseases;
+        Trainer = agenda?.Trainer;
         return this;
     }
 }

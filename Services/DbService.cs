@@ -26,7 +26,7 @@ public class ApplicationContext : DbContext
         modelBuilder.Entity<Sale>()
                     .HasIndex(s => s.Key).IsUnique();
         modelBuilder.Entity<Sale>()
-                    .HasMany(s => s.Product);
+                    .HasMany(s => s.Product).WithMany(p => p.PartOf);
         modelBuilder.Entity<Product>()
                     .HasIndex(s => s.Code).IsUnique();
     }
@@ -38,14 +38,16 @@ public interface IDbService : IAsyncDisposable
 
     Task СompleteAsync(int saleId);
     Task<Sale> AddSaleAsync(Client client, Agenda? agenda, SaleType saleType, DateTime dateTime, bool isDone, bool isNewKey = false, string? key = null);
-    Task
-    AddWorkoutProgramAsync(WorkoutProgram workoutProgram);
+    Task AddWorkoutProgramAsync(WorkoutProgram workoutProgram);
+
     Task<WorkoutProgram?> FindWorkoutProgramAsync(WorkoutProgram workoutProgram);
     Task<WorkoutProgram?> FindWorkoutProgramAsync(Agenda agenda);
+
     Task<Table> GetNonDoneSalesAsync(string separator);
     Task<Table> GetWorkoutProgramsAsync(string separator);
     Task<Table> GetTeamAsync(string separator);
-    Task<string> GetCoachContactsAsync(string coachNickname);
+
+    Task<string> GetCoachContactsAsync(string coachNickname, string separator = "<br/>");
     Task<(string name, string email)[]> GetInnerEmailsAsync(string[] coachNicknames = null, bool admins = false);
 }
 
@@ -73,12 +75,9 @@ public class DbService : IDbService
 
     public async Task<Sale> AddSaleAsync(Client client, Agenda? agenda, SaleType saleType, DateTime dateTime, bool isDone, bool isNewKey = false, string? key = null)
     {
-        Sale sale = null;
-        var oldClient = await Context.Clients.Where(c => c.Email == client.Email).FirstOrDefaultAsync();
-
-        if (string.IsNullOrEmpty(key) || isNewKey)
+        if (string.IsNullOrWhiteSpace(key) || isNewKey)
         {
-            if (oldClient is not null)
+            if (await Context.Clients.Where(c => c.Email == client.Email).FirstOrDefaultAsync() is Client oldClient)
             {
                 client = oldClient;
                 _logger.LogInformation($"Db (new sale): [{client.Name}] ({client.Email}) is already exist");
@@ -89,42 +88,37 @@ public class DbService : IDbService
                 _logger.LogInformation($"Db (new sale): [{client.Name}] ({client.Email}) is new");
             }
 
-            sale = new Sale { Client = client, Agenda = agenda, Type = saleType, PurchaseTime = dateTime, IsDone = isDone, Key = key };
+            var sale = new Sale { Client = client, Agenda = agenda, Type = saleType, PurchaseTime = dateTime, IsDone = isDone, Key = key };
             Context.Sales.Add(sale);
-
+            Context.SaveChanges();
             _logger.LogInformation($"Db (new sale): sale [{sale.Id} – {sale.Type}] for {client.Name} ({client.Email})");
+            return sale;
         }
         else
         {
             try
             {
-                sale = await (from s in Context.Sales.Include(s => s.Client).Include(s => s.Agenda)
-                              where s.Key == key
-                              select s).SingleAsync();
+                var sale = await Context.Sales.Include(s => s.Client).Include(s => s.Agenda).Where(s => s.Key == key).Select(s => s).SingleAsync();
+
+                sale.Key = null;
+                sale.Client.UpdateWith(client);
+                sale.Agenda?.UpdateWith(agenda);
+                Context.Sales.Update(sale);
+                Context.SaveChanges();
+                _logger.LogInformation($"Db (update sale): sale [{sale.Id} – {sale.Type}] got correct data for {client.Name} ({client.Email})");
+                return sale;
             }
             catch (Exception e)
             {
                 _logger.LogWarning(e, $"Db (update sale): the key [{key}] is not found for [{client.Name}] ({client.Email})");
                 throw new DbExсeption($"У клиента {client.Name} {client.Email} {client.Phone} неверный ключ для обновления его данных.");
-                // а был ли клиент, или это старый пишет. есть ли такой в бд?
             }
-
-            sale.Key = null;
-            sale.Client.UpdateWith(client);
-            if (agenda is not null) sale.Agenda.UpdateWith(agenda);
-
-            Context.Sales.Update(sale);
-            _logger.LogInformation($"Db (update sale): sale [{sale.Id} – {sale.Type}] got correct data for {client.Name} ({client.Email})");
         }
-
-        Context.SaveChanges();
-        return sale;
     }
 
     public async Task AddWorkoutProgramAsync(WorkoutProgram workoutProgram)
     {
-        var existOne = await FindWorkoutProgramAsync(workoutProgram);
-        if (existOne is not null)
+        if (await FindWorkoutProgramAsync(workoutProgram) is WorkoutProgram existOne)
         {
             existOne.ProgramPath = workoutProgram.ProgramPath;
             Context.WorkoutPrograms.Update(existOne);
@@ -203,7 +197,7 @@ public class DbService : IDbService
         return table;
     }
 
-    public async Task<string> GetCoachContactsAsync(string coachNickname)
+    public async Task<string> GetCoachContactsAsync(string coachNickname, string separator = "<br/>")
     {
         try
         {
@@ -213,13 +207,13 @@ public class DbService : IDbService
             var contacts = new StringBuilder();
 
             foreach (var item in worker.Contacts.Where(c => c.Type == ContactType.Email))
-                contacts.AppendLine($"Почта: {item.Info}");
+                contacts.AppendLine($"Почта: {item.Info}" + separator);
 
             foreach (var item in worker.Contacts.Where(c => c.Type == ContactType.Phone))
-                contacts.AppendLine($"Телефон: {item.Info}");
+                contacts.AppendLine($"Телефон: {item.Info}" + separator);
 
             foreach (var item in worker.Contacts.Where(c => c.Type == ContactType.Address))
-                contacts.AppendLine($"Адрес: {item.Info}");
+                contacts.AppendLine($"Адрес: {item.Info}" + separator);
 
             return contacts.ToString();
         }
@@ -253,6 +247,6 @@ public class DbService : IDbService
     {
         await Context.SaveChangesAsync();
         await Context.DisposeAsync();
-        _logger.LogInformation("Db (dispose): disposed");
+        _logger.LogTrace("Db (dispose): disposed");
     }
 }

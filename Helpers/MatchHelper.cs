@@ -87,7 +87,8 @@ public static class MatchHelper
 
     // --------------------------------------------------------------------------------
 
-    public static T2 Key<T1, T2>(this Dictionary<T1, T2> dictionary, T1 key) => dictionary.TryGetValue(key, out var value) ? value : default(T2);
+    public static T2? Key<T1, T2>(this Dictionary<T1, T2> dictionary, T1 key) => dictionary.TryGetValue(key, out var value) ? value : default(T2);
+
     public static bool? AsBool(this int? value) => Archive_ValueToBool.Key(value);
     public static int? AsInt(this string? str) => int.TryParse(str, out int val) ? val : null;
     public static int? AsInt(this int? value) => Archive_ValueToInt.Key(value);
@@ -96,7 +97,7 @@ public static class MatchHelper
     public static int? AsValue(this string? form) => Archive_FormToValue.Key(form);
     public static string? AsErrorTitle(this SaleType type) => Archive_SaleTypeToErrorTitle.Key(type);
     public static string? AsReinputLink(this SaleType type) => Archive_SaleTypeToYandexFormForReinput.Key(type);
-    public static string? AsInfoString(this List<Contact> contacts, string separator = null)
+    public static string? AsInfoString(this List<Contact> contacts, string separator)
     {
         var sb = new StringBuilder();
         foreach (var contact in contacts)
@@ -154,10 +155,6 @@ public static class MatchHelper
         [13] = "Мужчина",
         [14] = "Женщина",
 
-        [15] = "Алексей",
-        [16] = "Дмитрий",
-        [17] = "Мария",
-
         [18] = "2",
         [19] = "3",
         [20] = "4",
@@ -200,13 +197,6 @@ public static class MatchHelper
         ["https://static.tildacdn.com/tild3661-3562-4133-a230-616233613238/man.svg"] = 13,
         ["https://static.tildacdn.com/tild6165-6563-4335-a361-333038333538/woman.svg"] = 14,
 
-        ["Алексей"] = 15,
-        ["Дмитрий"] = 16,
-        ["Мария"] = 17,
-        ["https://static.tildacdn.com/tild6564-3433-4636-b332-633733323564/__.svg"] = 15,
-        ["https://static.tildacdn.com/tild3733-6639-4431-b266-323130303466/__-2.svg"] = 16,
-        ["https://static.tildacdn.com/tild3532-3132-4262-a663-363463613838/__-1.svg"] = 17,
-
         ["2"] = 18,
         ["3"] = 19,
         ["4"] = 20,
@@ -222,7 +212,6 @@ public static class MatchHelper
         ["Почта"] = 25,
         ["Телефон"] = 26,
         ["Адрес"] = 27,
-
     };
 
     private static readonly Dictionary<SaleType?, string?> Archive_SaleTypeToErrorTitle = new()

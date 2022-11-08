@@ -6,17 +6,19 @@ using MailKit;
 
 namespace Syracuse;
 
-public interface IMailService
+public interface IMailService : IAsyncDisposable
 {
+    Task SendMailAsync(MailService.MailContent content);
     Task SendMailAsync(MailType type, string addresseeEmail, string addresseeName, string subject, string message, params MailService.FilePath[] filePaths);
     Task SendMailAsync(MailType type, (string email, string name)[] addressee, string subject, string message, params (string name, string path)[] filePaths);
     Task SendMailAsync(MailType type, (string email, string name) addressee, string subject, string message, params (string name, string path)[] filePaths);
     //Task LoadAttachmentAsync(string key, string path);
 }
 
-public class MailService : IMailService, IAsyncDisposable
+public class MailService : IMailService
 {
     public record FilePath(string name, string path);
+    public record MailContent(MailType type, string email, string name, string subject, string message, FilePath[] files);
 
     private ILogger<MailService> _logger;
     private bool _isInit = false;
@@ -25,17 +27,11 @@ public class MailService : IMailService, IAsyncDisposable
     private static readonly string s_awaitMailPath = Path.Combine("Resources", "Templates", "await-mail.html");
     private static readonly string s_failureMailPath = Path.Combine("Resources", "Templates", "failure-mail.html");
     private static readonly string s_innerMailPath = Path.Combine("Resources", "Templates", "inner-mail.html");
-
-    //private static readonly string s_imapHost = "imap.mail.ru";
     private static readonly string s_smtpHost = "smtp.mail.ru";
     private static readonly int s_smtpPort = 465;
-    //private static readonly int s_imapPort = 993;
-
     private static string s_user => Environment.GetEnvironmentVariable("MAIL_USER");
     private static string s_password => Environment.GetEnvironmentVariable("MAIL_PASS");
-
     private static bool s_fake => Environment.GetEnvironmentVariable("MAIL_FAKE").Equals("yes");
-
     private static MailboxAddress s_from => new MailboxAddress(
         Environment.GetEnvironmentVariable("MAIL_FROM_NAME"),
         Environment.GetEnvironmentVariable("MAIL_FROM_ADDR"));
@@ -72,6 +68,8 @@ public class MailService : IMailService, IAsyncDisposable
             throw new MailExсeption("Ошибка при авторизации на SMTP сервере почты", e);
         }
     }
+
+    public async Task SendMailAsync(MailService.MailContent content) => await SendMailAsync(content.type, content.email, content.name, content.subject, content.message, content.files);
 
     public async Task SendMailAsync(MailType type, string addresseeEmail, string addresseeName, string subject, string message, params MailService.FilePath[] filePaths) => await SendMailAsync(type, new[] { (addresseeEmail, addresseeName) }, subject, message, filePaths.Select(fp => (fp.name, fp.path)).ToArray());
 

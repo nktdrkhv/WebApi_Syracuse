@@ -18,7 +18,7 @@ public class Sale
     public string? Key { get; set; }
 
     public bool IsDone { get; set; }
-    [Column("ToCemail")] public bool IsEmailToCustomerSent { get; set; }
-    [Column("ToAemail")] public bool IsEmailToAdminSent { get; set; }
+    [Column("ToCemail")] public bool IsSuccessEmailSent { get; set; }
+    [Column("ToAemail")] public bool IsAdminNotified { get; set; }
     public DateTime? ScheduledDeliverTime { get; set; }
 }

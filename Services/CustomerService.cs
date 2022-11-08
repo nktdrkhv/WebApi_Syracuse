@@ -138,43 +138,135 @@ public class CustomerService : ICustomerService
         }
     }
 
-    static CustomerService()
+    // -----------------------
+
+    //static CustomerService() => RecurringJob.AddOrUpdate<IServiceProvider>("send-out-products-to-customers", sp => AttachNewWpAndSendAsync(sp), Cron.Daily);
+
+    private static async Task ForwardMail(IServiceProvider provider, MailService.MailContent content, Sale sale)
     {
-        RecurringJob.AddOrUpdate("notify-admins", () => NotifyAdminsAsync(), Cron.Minutely);
-        RecurringJob.AddOrUpdate("send-out-products-to-customers", () => SendOutProductsAsync(), Cron.Minutely);
+        using var scope = provider.CreateScope();
+        await using var mail = scope.ServiceProvider.GetService<IMailService>();
+        await using var db = scope.ServiceProvider.GetService<IDbService>();
+        var logger = provider.GetService<ILogger<CustomerService>>();
+
+        await mail.SendMailAsync(content);
+        await db.СompleteAsync(sale.Id);
+        logger.LogInformation($"Mail({sale.Type.ToString()}): Mail was sent to client [{sale.Client.Email}] with sale ID [{sale.Id}]");
     }
 
-    private static async Task NotifyAdminsAsync()
-    {
+    // -----------------------
 
+    private async Task AttachWpAndForwardAsync()
+    {
+        var awaitingCustomers = _db.Context.Sales
+            .Include(s => s.Client).Include(s => s.Agenda).Include(s => s.WorkoutProgram)
+            .Where(s => (s.Type == SaleType.Begginer || s.Type == SaleType.Profi) && !s.IsDone)
+            .ToList();
+
+        foreach (var sale in awaitingCustomers)
+            if (sale.WorkoutProgram is null && await _db.FindWorkoutProgramAsync(sale.Agenda) is WorkoutProgram wp)
+            {
+                sale.WorkoutProgram = wp;
+                _db.Context.Sales.Update(sale);
+                var content = CreateContentForWp(sale);
+
+                await _mail.SendMailAsync(content);
+                await _db.СompleteAsync(sale.Id);
+            }
     }
 
-    private static async Task SendOutProductsAsync()
+    private async Task ForwardSuccessEmailAsync(Sale sale)
     {
-
-    }
-
-    private async Task SendSuccessfulPurchaseMailAsync(SaleType type, Client client, Agenda? agenda = null)
-    {
-        switch (type)
+        switch (sale.Type)
         {
             case SaleType.Begginer:
+                var messageBegginer = "Благодарим за покупку программы тренировок «Begginer»! В течение следующего дня (в выходные может потребоваться больше времени) наш тренер отправит вам персональную программу тренировок.";
+                await _mail.SendMailAsync(MailType.Awaiting, sale.Client.Email, sale.Client.Name, "Персональная программа тренировок «Begginer»", messageBegginer);
+                _logger.LogInformation($"Mail (wp-begginer-successful): sent to {sale.Client.Email}");
                 break;
             case SaleType.Profi:
+                var messageProfi = "Благодарим за покупку программы тренировок «Profi»! В течение следующего дня (в выходные может потребоваться больше времени) наш тренер отправит вам персональную программу тренировок.";
+                await _mail.SendMailAsync(MailType.Awaiting, sale.Client.Email, sale.Client.Name, "Персональная программа тренировок «Profi»", messageProfi);
+                _logger.LogInformation($"Mail (wp-profi-successful): sent to {sale.Client.Email}");
                 break;
             case SaleType.Standart:
+                var messageStandart = "Благодарим за покупку программы питания «Standart»! В течение следующего дня (в выходные может потребоваться больше времени) наш тренер отправит вам вашу персональную программу питания.";
+                await _mail.SendMailAsync(MailType.Awaiting, sale.Client.Email, sale.Client.Name, "Standart питание: КБЖУ + рацион", messageStandart);
                 break;
             case SaleType.Pro:
+                var messagePro = "Благодарим за покупку программы питания «Pro»! В течение следующего дня (в выходные может потребоваться больше времени) наш тренер отправит вам вашу персональную программу питания и рецепты.";
+                await _mail.SendMailAsync(MailType.Awaiting, sale.Client.Email, sale.Client.Name, "PRO питание: КБЖУ + рацион + книга рецептов", messagePro);
                 break;
             case SaleType.Coach:
-                var messageCoach = $"В течение следующего дня (в выходные может потребоваться больше времени) наш тренер свяжется с вами для начала тренировок. <br />Контакты тренера:<br />{await _db.GetCoachContactsAsync(agenda?.Trainer) ?? "<i>не указаны</i>"}";
-                await _mail.SendMailAsync(MailType.Success, client.Email, client.Name, "Занятия с Online-тренером", messageCoach);
-                _logger.LogInformation($"Mail (coach): sent to {client.Email}");
+                var messageCoach = $"В течение следующего дня (в выходные может потребоваться больше времени) наш тренер свяжется с вами для начала тренировок.<br/><br/><b>Контакты тренера:</b><br/>{await _db.GetCoachContactsAsync(sale?.Agenda?.Trainer) ?? "<i>не указаны</i>"}";
+                await _mail.SendMailAsync(MailType.Success, sale.Client.Email, sale.Client.Name, "Занятия с Online-тренером", messageCoach);
+                _logger.LogInformation($"Mail (coach): sent to {sale.Client.Email}");
                 break;
             case SaleType.Endo:
-                var messageEndo = $"В течение следующего дня (в выходные может потребоваться больше времени) наш эндокринолог свяжется с вами для консультации";
-                await _mail.SendMailAsync(MailType.Success, client.Email, client.Name, "Консультация эндокринолога", messageEndo);
-                _logger.LogInformation($"Mail (endo): sent to {client.Email}");
+                var messageEndo = $"В течение следующего дня (в выходные может потребоваться больше времени) <i>наш эндокринолог</i> свяжется с вами для консультации";
+                await _mail.SendMailAsync(MailType.Success, sale.Client.Email, sale.Client.Name, "Консультация эндокринолога", messageEndo);
+                _logger.LogInformation($"Mail (endo): sent to {sale.Client.Email}");
+                break;
+            case SaleType.Posing:
+                break;
+            default:
+                throw new ArgumentException();
+        }
+    }
+
+    private async Task NotifyAdminsAsync(Sale sale)
+    {
+
+        switch (sale.Type)
+        {
+            case SaleType.Begginer:
+            case SaleType.Profi:
+                if (sale.WorkoutProgram is null)
+                {
+                    _logger.LogInformation($"Client (wp): wp for {sale.Client.Email} doesnt exit");
+                    var gettersInfo = MatchHelper.TransformToValues(sale, SaleType.WorkoutProgram);
+                    var link = UrlHelper.MakeLink(SaleType.WorkoutProgram.AsReinputLink(), gettersInfo);
+                    _logger.LogInformation($"Client (wp): New wp link for admins is {link}");
+
+                    var clientInfo = LogHelper.ClientInfo(sale.Client, sale.Agenda);
+                    clientInfo = clientInfo.Replace("\n", "<br/>");
+                    var emails = await _db.GetInnerEmailsAsync(admins: true);
+                    var messageWp = $"Необходимо составить новую программу тренировок для:<br/>{clientInfo}<br/>Перейдите для этого по ссылке: <i>{link}</i>";
+
+                    foreach (var admin in await _db.GetInnerEmailsAsync(admins: true))
+                        await _mail.SendMailAsync(MailType.Inner, admin, "Запрос на новую программу тренировок", messageWp);
+                }
+                else
+                {
+                    var messageWp = $"Покупка готовой программы тренировок {sale.Type.ToString()}. Клиент:<br/>{LogHelper.ClientInfo(sale.Client).Replace("\n", "<br/>")}";
+
+                    foreach (var admin in await _db.GetInnerEmailsAsync(admins: true))
+                        await _mail.SendMailAsync(MailType.Inner, admin, "Покупка готовой программы тренировок", messageWp);
+                    _logger.LogInformation($"Mail ({sale.Type.ToString()}): info about {sale.Client.Email} is sent to admins");
+                }
+                break;
+            case SaleType.Standart:
+            case SaleType.Pro:
+                var messageNut = $"Покупка сгенерированной программы питания {sale.Type.ToString()}. Клиент:<br/>{LogHelper.ClientInfo(sale.Client).Replace("\n", "<br/>")}";
+
+                foreach (var admin in await _db.GetInnerEmailsAsync(admins: true))
+                    await _mail.SendMailAsync(MailType.Inner, admin, "Покупка программы питания", messageNut);
+                _logger.LogInformation($"Mail ({sale.Type.ToString()}): info about {sale.Client.Email} is sent to admins");
+                break;
+            case SaleType.Coach:
+                var messageCoach = "Новый клиент на онлайн-тренировки:<br/>" +
+                            LogHelper.ClientInfo(sale.Client, sale.Agenda).Replace("\n", "<br/>") + "<br/>Пожалуйста, свяжитесь с ним/ней";
+                foreach (var worker in await _db.GetInnerEmailsAsync(coachNicknames: new[] { sale.Agenda.Trainer }, admins: true))
+                    await _mail.SendMailAsync(MailType.Inner, worker, "Занятия с Online-тренером: новый клиент", messageCoach);
+                _logger.LogInformation($"Mail (coach): info about {sale.Client.Email} is sent to admins");
+                break;
+            case SaleType.Endo:
+                var messageEndo = $"Новый клиент на консультацию эндокринолога: <br/>{LogHelper.ClientInfo(sale.Client).Replace("\n", "<br/>")}<br/>Пожалуйста, свяжитесь с ним/ней";
+                foreach (var admin in await _db.GetInnerEmailsAsync(admins: true))
+                    await _mail.SendMailAsync(MailType.Inner, admin, "Консультация эндокринолога: новый клиент", messageEndo);
+                _logger.LogInformation($"Mail (endo): info about {sale.Client.Email} is sent to admins");
+                break;
+            case SaleType.Posing:
                 break;
             default:
                 throw new ArgumentException();
@@ -195,56 +287,44 @@ public class CustomerService : ICustomerService
 
     private async Task HandlePosingFormAsync(Dictionary<string, string> data)
     {
-        await Task.Yield(); ////!
+        await Task.Yield();
     }
 
     private async Task HandleEndoFormAsync(Dictionary<string, string> data)
     {
         Map(SaleType.Endo, data, out var client, out _);
-        await _db.AddSaleAsync(client, null, SaleType.Endo, DateTime.UtcNow, true);
 
-        await SendSuccessfulPurchaseMailAsync(SaleType.Endo, client);
+        var sale = await _db.AddSaleAsync(client, null, SaleType.Endo, DateTime.UtcNow, true);
 
-        var message2 = $"Новый клиент на консультацию эндокринолога: <br /> {LogHelper.ClientInfo(client).Replace("\n", "<br />")} <br /> Пожалуйста, свяжитесь с ним/ней";
-        foreach (var worker in await _db.GetInnerEmailsAsync(admins: true))
-        {
-            await Task.Delay(2000);
-            await _mail.SendMailAsync(MailType.Inner, worker, "Консультация эндокринолога: новый клиент", message2);
-        }
-        _logger.LogInformation($"Mail (endo): info about {client.Email} is sent to admins");
+        await ForwardSuccessEmailAsync(sale);
+        sale.IsSuccessEmailSent = true;
+        _db.Context.Sales.Update(sale);
+
+        await NotifyAdminsAsync(sale);
+        sale.IsAdminNotified = true;
+        _db.Context.Sales.Update(sale);
     }
 
     private async Task HandleCoachFormAsync(Dictionary<string, string> data)
     {
         Map(SaleType.Coach, data, out var client, out var agenda);
-        _logger.LogInformation($"Client (coach): {client.Name} {client.Phone} {client.Email} is mapped");
         if (!await Validate(SaleType.Coach, data, client, agenda))
             return;
 
-        /// Добавление данных в БД: новых записей или обновление старых при наличие ключа
         string? key = data.Key("key");
         key = key?.Equals(KeyHelper.UniversalKey) is true ? null : key;
         var sale = await _db.AddSaleAsync(client, agenda, SaleType.Coach,
             dateTime: DateTime.UtcNow,
             isDone: true,
-            isNewKey: false,
-            key: key);
-        _logger.LogInformation($"Db (coach): {client.Email} with key [{key}] added data to db");
+            isNewKey: false, key: key);
 
-        await SendSuccessfulPurchaseMailAsync(SaleType.Coach, client, agenda);
+        await ForwardSuccessEmailAsync(sale);
+        sale.IsSuccessEmailSent = true;
+        _db.Context.Sales.Update(sale);
 
-        /// Отправка сообщений тренеру и администраторам
-        var message2 = "Новый клиент на онлайн-тренировки: <br />" +
-                        LogHelper.ClientInfo(client, agenda).Replace("\n", "<br />") +
-                        "<br /> Пожалуйста, свяжитесь с ним/ней";
-        foreach (var worker in await _db.GetInnerEmailsAsync(coachNicknames: new[] { agenda.Trainer }, admins: true))
-        {
-            await Task.Delay(2000);
-            await _mail.SendMailAsync(MailType.Inner, (worker.email, worker.name), "Занятия с Online-тренером: новый клиент", message2);
-        }
-
-        await _db.СompleteAsync(sale.Id);
-        _logger.LogInformation($"Mail (coach): info about {client.Email} is sent to admins");
+        await NotifyAdminsAsync(sale);
+        sale.IsAdminNotified = true;
+        _db.Context.Sales.Update(sale);
     }
 
     #endregion
@@ -256,29 +336,38 @@ public class CustomerService : ICustomerService
         if (!await Validate(saleType, data, client, agenda))
             return;
 
-        var key = data.Key("key");
+        string? key = data.Key("key");
         key = key?.Equals(KeyHelper.UniversalKey) is true ? null : key;
         var sale = await _db.AddSaleAsync(client, agenda, saleType,
             dateTime: DateTime.UtcNow,
             isDone: false,
-            isNewKey: false,
-            key: key);
-        _logger.LogInformation($"Db (workout): {client.Email} with key [{key}] added data to db");
+            isNewKey: false, key: key);
 
-        switch (saleType)
+        await ForwardSuccessEmailAsync(sale);
+        sale.IsSuccessEmailSent = true;
+        _db.Context.Sales.Update(sale);
+
+        if (await _db.FindWorkoutProgramAsync(sale.Agenda) is WorkoutProgram wp)
         {
-            case SaleType.Begginer:
-                var message1 = "Благодарим за покупку программы тренировок «Begginer»! В течение следующего дня (в выходные может потребоваться больше времени) наш тренер отправит вам персональную программу тренировок.";
-                await _mail.SendMailAsync(MailType.Awaiting, (client.Email, client.Name), "Персональная программа тренировок «Begginer»", message1);
-                break;
-            case SaleType.Profi:
-                var message2 = "Благодарим за покупку программы тренировок «Profi»! В течение следующего дня (в выходные может потребоваться больше времени) наш тренер отправит вам персональную программу тренировок.";
-                await _mail.SendMailAsync(MailType.Awaiting, (client.Email, client.Name), "Персональная программа тренировок «Profi»", message2);
-                break;
+            sale.WorkoutProgram = wp;
+            _db.Context.Sales.Update(sale);
+            var content = CreateContentForWp(sale);
+            BackgroundJob.Schedule<IServiceProvider>(sp => ForwardMail(sp, content, sale), ScheduleHelper.GetSchedule());
+            _logger.LogInformation($"Client (wp): wp for {sale.Client.Email} is exit. It's {sale.WorkoutProgram.Id} : {sale.WorkoutProgram.ProgramPath}");
         }
-        _logger.LogInformation($"Mail (workout-prepare): sent to {client.Email}");
 
-        await TransmitWorkoutProgramAsync(sale);
+        await NotifyAdminsAsync(sale);
+        sale.IsAdminNotified = true;
+        _db.Context.Sales.Update(sale);
+    }
+
+    private MailService.MailContent CreateContentForWp(Sale sale)
+    {
+        var subject = sale.Type is SaleType.Begginer ? "Begginer: готовая программа" : "Profi: готовая программа";
+        var message = "Ваша персональная программа тренировок готова! Она прикреплена к данному сообщению.";
+        var wpFile = new MailService.FilePath("Персональная программа тренировок.pdf", sale.WorkoutProgram.ProgramPath);
+        var content = new MailService.MailContent(MailType.Success, sale.Client.Email, sale.Client.Name, subject, message, new[] { wpFile });
+        return content;
     }
 
     private async Task HandleNutritionAsync(Dictionary<string, string> data, SaleType saleType)
@@ -292,9 +381,7 @@ public class CustomerService : ICustomerService
         var sale = await _db.AddSaleAsync(client, agenda, saleType,
             dateTime: DateTime.UtcNow,
             isDone: false,
-            isNewKey: false,
-            key: key);
-        _logger.LogInformation($"Db (nutrition): {client.Email} with key [{key}] added data to db");
+            isNewKey: false, key: key);
 
         var cpfc = NutritionHelper.CalculateCpfc(agenda);
         var diet = NutritionHelper.CalculateDiet(cpfc);
@@ -306,24 +393,22 @@ public class CustomerService : ICustomerService
         var recepies = new MailService.FilePath("Книга рецептов.pdf", Path.Combine("Resources", "Produced", "Recepies.pdf"));
         var instructions = new MailService.FilePath("Инструкции.pdf", Path.Combine("Resources", "Produced", "Instructions.pdf"));
 
+        await ForwardSuccessEmailAsync(sale);
+        sale.IsSuccessEmailSent = true;
+
         switch (saleType)
         {
             case SaleType.Standart:
-                var message1 = "К данному письму приложен PDF документ,в котором находится КБЖУ и примерный рацион питания.";
-                BackgroundJob.Schedule(() =>
-                        _mail.SendMailAsync(MailType.Success, client.Email, client.Name, "Standart питание. КБЖУ + рацион", message1, nutrition, instructions).Wait(),
-                        ScheduleHelper.GetSchedule());
+                var msgStandart = "К данному письму приложен PDF документ,в котором находится КБЖУ и примерный рацион питания.";
+                var contentStandart = new MailService.MailContent(MailType.Success, client.Email, client.Name, "Standart питание: КБЖУ + рацион", msgStandart, new[] { nutrition, instructions });
+                BackgroundJob.Schedule<IServiceProvider>(sp => ForwardMail(sp, contentStandart, sale), ScheduleHelper.GetSchedule());
                 break;
             case SaleType.Pro:
-                var message2 = "К данному письму приложено два PDF документа. В одном из них находится КБЖУ и примерный рацион питания. В другом – рецепты.";
-                BackgroundJob.Schedule(() =>
-                        _mail.SendMailAsync(MailType.Success, client.Email, client.Name, "PRO питание + книга рецептов", message2, nutrition, instructions, recepies).Wait(),
-                        ScheduleHelper.GetSchedule());
+                var msgPro = "К данному письму приложено два PDF документа. В одном из них находится КБЖУ и примерный рацион питания. В другом – рецепты.";
+                var contentPro = new MailService.MailContent(MailType.Success, client.Email, client.Name, "PRO питание: КБЖУ + рацион + книга рецептов", msgPro, new[] { nutrition, instructions, recepies });
+                BackgroundJob.Schedule<IServiceProvider>(sp => ForwardMail(sp, contentPro, sale), ScheduleHelper.GetSchedule());
                 break;
         }
-
-        await _db.СompleteAsync(sale.Id);
-        _logger.LogInformation($"Mail (nutrition): sent to {client.Email}");
     }
 
     // --------------------------------------------------------------------------------
@@ -331,11 +416,10 @@ public class CustomerService : ICustomerService
     private async Task HandleValidationErrorAsync(ValidationException ex, Dictionary<string, string> data, SaleType saleType, Client client, Agenda? agenda)
     {
         string? existKey = data.Key("key");
-        if (string.Equals(existKey, KeyHelper.UniversalKey))
-            return;
+        if (string.Equals(existKey, KeyHelper.UniversalKey)) return;
         string key; Sale sale;
 
-        if (string.IsNullOrEmpty(existKey))
+        if (string.IsNullOrWhiteSpace(existKey))
         {
             key = KeyHelper.NewKey();
             sale = await _db.AddSaleAsync(client, agenda, saleType,
@@ -366,98 +450,27 @@ public class CustomerService : ICustomerService
         var sb = new StringBuilder()
             .AppendLine("При заполнении анкеты произошла ошибка: <br />");
         foreach (var error in ex.Errors)
-            sb.AppendLine($"{error.ErrorMessage} <br />");
-        sb.AppendLine($"<br /> Пожалуйста, перейдите по ссылке и введите данные повторно! <br /><b>{link}</b>");
+            sb.AppendLine($"{error.ErrorMessage} <br/>");
+        sb.AppendLine($"<br/> Пожалуйста, перейдите по ссылке и введите данные повторно! <br /><b>{link}</b>");
         await _mail.SendMailAsync(MailType.Failure, (client.Email, client.Name), saleType.AsErrorTitle(), sb.ToString());
         _logger.LogInformation($"Mail (validation of {saleType}): sent to {client.Email}");
-    }
-
-    private async Task TransmitWorkoutProgramAsync(Sale sale)
-    {
-        var wp = await _db.FindWorkoutProgramAsync(sale.Agenda);
-
-        if (wp is null)
-        {
-            _logger.LogInformation($"Client (wp): wp for {sale.Client.Email} doesnt exit");
-
-            sale.Key = KeyHelper.NewKey();
-            _db.Context.Sales.Update(sale);
-
-            var gettersInfo = MatchHelper.TransformToValues(sale, SaleType.WorkoutProgram);
-            var link = UrlHelper.MakeLink(SaleType.WorkoutProgram.AsReinputLink(), gettersInfo);
-            _logger.LogInformation($"Client (wp): New wp link for admins is {link}");
-
-            var clientInfo = LogHelper.ClientInfo(sale.Client, sale.Agenda);
-            clientInfo = clientInfo.Replace("\n", "<br />");
-            var emails = await _db.GetInnerEmailsAsync(admins: true);
-            var title = "Запрос на новую программу тренировок";
-            var message = $"Необходимо составить новую программу тренировок для:<br />{clientInfo}<br />Перейдите для этого по ссылке: {link}";
-
-            foreach (var email in emails)
-            {
-                await Task.Delay(2000);
-                await _mail.SendMailAsync(MailType.Inner, email, title, message);
-            }
-            _logger.LogInformation($"Mail (wp): Wp link for admins is sent");
-        }
-        else
-        {
-            sale.WorkoutProgram = wp;
-            _db.Context.Sales.Update(sale);
-            _logger.LogInformation($"Client (wp): wp for {sale.Client.Email} is exit. It's {sale.WorkoutProgram.Id} : {sale.WorkoutProgram.ProgramPath}");
-
-            //TODO: проверить отложенную отправку
-            string subject = sale.Type is SaleType.Begginer ? "Begginer: готовая программа" : "Profi: готовая программа";
-            string message = "Ваша персональная программа тренировок готова! Она прикреплена к данному сообщению.";
-            BackgroundJob.Schedule(() =>
-                _mail.SendMailAsync(MailType.Success, sale.Client.Email, sale.Client.Name, subject, message,
-                                    new MailService.FilePath("Персональная программа тренировок.pdf", wp.ProgramPath)).Wait(),
-                                    ScheduleHelper.GetSchedule());
-            _logger.LogInformation($"Mail (wp): Wp sent to {sale.Client.Email} ({sale.Client.Phone})");
-
-            await _db.СompleteAsync(sale.Id);
-        }
     }
 
     private async Task AddWorkoutProgramAsync(Dictionary<string, string> data)
     {
         var workoutProgram = _mapper.Map<WorkoutProgram>(data);
         workoutProgram.ProgramPath = Path.Combine("Resources", "Produced", "WorkoutPrograms", NewName());
-        _logger.LogInformation($"Admin (add wp): wp is mapped. Path. is {workoutProgram.ProgramPath}");
+        _logger.LogInformation($"Admin (add wp): wp is mapped. Path is {workoutProgram.ProgramPath}");
 
         var base64string = data.Key("file");
         await Base64Helper.DecodeToPdf(base64string, workoutProgram.ProgramPath);
         await _db.AddWorkoutProgramAsync(workoutProgram);
         _logger.LogInformation($"Admin (add wp): wp ({Name(workoutProgram.ProgramPath)}) is loaded and added to db");
 
-        Sale sale;
-        var key = data.Key("key");
-        if (!string.IsNullOrEmpty(key))
-        {
-            try
-            {
-                sale = (from s in _db.Context.Sales.Include(s => s.WorkoutProgram).Include(s => s.Client)
-                        where s.Key == key
-                        select s).Single();
-            }
-            catch (Exception e)
-            {
-                _logger.LogWarning(e, $"Admin (add wp): key {key} doesnt exits");
-                throw new CustomerExсeption("Указан некорректный ключ при добавлении программы. Воспользуйтесь отправленной в письме ссылкой.", e);
-            }
-
-            sale.WorkoutProgram = workoutProgram;
-            _db.Context.Sales.Update(sale);
-            _logger.LogInformation($"Admin (add wp): sale ({sale.Id}) is updated");
-
-            string subject = sale.Type is SaleType.Begginer ? "Begginer: готовая программа" : "Profi: готовая программа";
-            string message = "Ваша персональная программа тренировок готова! Она прикреплена к данному сообщению.";
-            await _mail.SendMailAsync(MailType.Success, (sale.Client.Email, sale.Client.Name), subject, message, ("Персональная программа тренировок.pdf", sale.WorkoutProgram.ProgramPath));
-            _logger.LogInformation($"Mail client (add wp): wp is sent to {sale.Client.Name}");
-
-            await _db.СompleteAsync(sale.Id);
-        }
+        await AttachWpAndForwardAsync();
     }
+
+    // --------------------------------------------------------------------------------
 
     private async Task LoadRecepiesAsync(Dictionary<string, string> data)
     {

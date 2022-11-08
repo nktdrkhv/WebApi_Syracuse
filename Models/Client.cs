@@ -12,10 +12,10 @@ public class Client
     public string Name { get; set; } = default;
     public List<Sale>? Purshares { get; set; } = default;
 
-    public Client UpdateWith(Client client)
+    public Client UpdateWith(Client? client)
     {
-        Phone = client.Phone;
-        Name = client.Name;
+        Phone = client?.Phone;
+        Name = client?.Name;
         return this;
     }
 }

@@ -68,7 +68,7 @@ if (!app.Environment.IsDevelopment())
 
 // --------------------------------------------------------------------------------
 
-app.MapPost("/tilda", async (HttpContext context, TildaOrder json, ICustomerService customerService) =>
+app.MapPost("/tilda", (HttpContext context, TildaOrder json, ICustomerService customerService) =>
 {
     if (!string.Equals(json.Token, KeyHelper.ApiToken))
         return Results.Unauthorized();
@@ -85,32 +85,22 @@ app.MapPost("/tilda", async (HttpContext context, TildaOrder json, ICustomerServ
 
     app.Logger.LogInformation(message: LogHelper.RawData(data));
 
-    // context.Response.OnCompleted(() => Task.Run(async () =>
-    // {
-    //     try
-    //     {
-    //         await customerService.HandleTildaAsync(data);
-    //     }
-    //     catch (Exception e)
-    //     {
-    //         app.Logger.LogError($"T ERROR MESSAGE: {e.Message} \n INNER :{e.InnerException} \n SOURCE: {e.Source} \n STACKTRACE: {e.StackTrace}");
-    //     }
-    // }));
-
-    try
+    context.Response.OnCompleted(() => Task.Run(async () =>
     {
-        await customerService.HandleTildaAsync(data);
-    }
-    catch (Exception e)
-    {
-        app.Logger.LogError(e, "Error while handling Tilda");
-        Results.StatusCode(500);
-    }
+        try
+        {
+            await customerService.HandleTildaAsync(data);
+        }
+        catch (Exception e)
+        {
+            app.Logger.LogError(e, "Error while handling Tilda");
+        }
+    }));
 
     return Results.Ok();
 });
 
-app.MapPost("/yandex", async (HttpContext context, YandexJsonRpc json, ICustomerService customerService) =>
+app.MapPost("/yandex", (HttpContext context, YandexJsonRpc json, ICustomerService customerService) =>
 {
     var data = json.Params;
     app.Logger.LogInformation(message: LogHelper.RawData(data));
@@ -121,27 +111,17 @@ app.MapPost("/yandex", async (HttpContext context, YandexJsonRpc json, ICustomer
         return Results.Unauthorized(); ;
     }
 
-    // context.Response.OnCompleted(() => Task.Run(async () =>
-    // {
-    //     try
-    //     {
-    //         await customerService.HandleYandexAsync(data);
-    //     }
-    //     catch (Exception e)
-    //     {
-    //         app.Logger.LogError($"Y ERROR MESSAGE: {e.Message} \n INNER :{e.InnerException} \n SOURCE: {e.Source} \n STACKTRACE: {e.StackTrace}");
-    //     }
-    // }));
-
-    try
+    context.Response.OnCompleted(() => Task.Run(async () =>
     {
-        await customerService.HandleYandexAsync(data);
-    }
-    catch (Exception e)
-    {
-        app.Logger.LogError(e, "Error while handling Yandex");
-        Results.StatusCode(500);
-    }
+        try
+        {
+            await customerService.HandleYandexAsync(data);
+        }
+        catch (Exception e)
+        {
+            app.Logger.LogError(e, "Error while handling Yandex");
+        }
+    }));
 
     return Results.Ok();
 });
@@ -154,7 +134,7 @@ app.MapGet("/", (HttpContext context) =>
     return Results.Ok("These Are Not the Droids You Are Looking For");
 });
 
-app.MapGet("admin/{table}", async (string table, string? token, IDbService db) =>
+app.MapGet("/admin/{table}", async (string table, string? token, IDbService db) =>
 {
     if (token != KeyHelper.ApiToken)
     {
@@ -173,13 +153,18 @@ app.MapGet("admin/{table}", async (string table, string? token, IDbService db) =
     return Results.Json(await handler);
 });
 
-app.MapGet("price/{product}", (string product) =>
+app.MapGet("/price/{product}", (string product) =>
 {
     using var context = new ApplicationContext();
     var price = context.Products.Where(p => p.Code == product).Select(p => p.Price).SingleOrDefault();
     app.Logger.LogInformation($"Price for [{product}] is [{price}] rubles");
     return Results.Ok(price);
 });
+
+// app.MapPost("/upload/{file}", (string file, string? token, IDbService) =>
+// {
+
+// });
 
 // --------------------------------------------------------------------------------
 if (app.Environment.IsDevelopment())
