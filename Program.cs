@@ -41,17 +41,17 @@ builder.Services.AddScoped<IMailService, MailService>();
 builder.Services.AddScoped<IDbService, DbService>();
 
 builder.Services.AddCors(options =>
-    options.AddDefaultPolicy(policy => policy.WithOrigins(
-        "http://korablev-team.ru", "https://korablev-team.ru").AllowAnyMethod()));
+     options.AddDefaultPolicy(policy => policy.WithOrigins("https://korablev-team.ru").AllowAnyMethod().AllowAnyHeader()));
+builder.Services.AddCors();
 builder.Host.UseSystemd();
 
 // --------------------------------------------------------------------------------
 
 WebApplication app = builder.Build();
+GlobalConfiguration.Configuration.UseActivator(new HangfireActivator(app.Services));
 
 if (!app.Environment.IsDevelopment())
 {
-    app.UseCors();
     app.UseHttpsRedirection();
     app.UseExceptionHandler(options =>
     {
@@ -66,36 +66,43 @@ if (!app.Environment.IsDevelopment())
     });
 }
 
+app.UseCors();
+
 // --------------------------------------------------------------------------------
 
 app.MapPost("/tilda", (HttpContext context, TildaOrder json, ICustomerService customerService) =>
 {
-    if (!string.Equals(json.Token, KeyHelper.ApiToken))
-        return Results.Unauthorized();
-
-    if (json.Test == "test")
-        return Results.Ok("test");
+    if (!string.Equals(json.Token, KeyHelper.ApiToken)) return Results.Unauthorized();
+    if (json.Test == "test") return Results.Ok("test");
 
     var data = new Dictionary<string, string>();
     data["name"] = json.Name;
     data["email"] = json.Email;
     data["phone"] = json.Email;
     data["orderid"] = json.Payment.OrderId;
-    //var product = json.
+    var product = json.Payment.Products.First();
+    data["price"] = product.Price;
+    foreach (var option in product.Options)
+    {
+        var optionName = option.Option;
+        var variantName = option.Variant;
+        data[optionName] = variantName;
+    }
 
     app.Logger.LogInformation(message: LogHelper.RawData(data));
 
-    context.Response.OnCompleted(() => Task.Run(async () =>
+    context.Response.OnCompleted(() =>
     {
         try
         {
-            await customerService.HandleTildaAsync(data);
+            return customerService.HandleTildaAsync(data);
         }
         catch (Exception e)
         {
             app.Logger.LogError(e, "Error while handling Tilda");
+            return Task.CompletedTask;
         }
-    }));
+    });
 
     return Results.Ok();
 });
@@ -138,7 +145,7 @@ app.MapGet("/admin/{table}", async (string table, string? token, IDbService db) 
 {
     if (token != KeyHelper.ApiToken)
     {
-        app.Logger.LogInformation($"Unauthorized: get nondone");
+        app.Logger.LogInformation($"Unauthorized: get [{table}]");
         return Results.Unauthorized();
     }
 
@@ -159,7 +166,16 @@ app.MapGet("/price/{product}", (string product) =>
     var price = context.Products.Where(p => p.Code == product).Select(p => p.Price).SingleOrDefault();
     app.Logger.LogInformation($"Price for [{product}] is [{price}] rubles");
     return Results.Ok(price);
-});
+})/*.RequireCors(cpb => cpb.AllowAnyHeader().AllowAnyMethod().AllowAnyOrigin())*/;
+
+
+app.MapGet("/label/{product}", (string product) =>
+{
+    using var context = new ApplicationContext();
+    var label = context.Products.Where(p => p.Code == product).Select(p => p.Label).SingleOrDefault();
+    app.Logger.LogInformation($"Label for [{product}] is [{label}]");
+    return Results.Ok(label);
+})/*.RequireCors(cpb => cpb.AllowAnyHeader().AllowAnyMethod().AllowAnyOrigin())*/;
 
 // app.MapPost("/upload/{file}", (string file, string? token, IDbService) =>
 // {

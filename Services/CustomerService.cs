@@ -109,7 +109,6 @@ public class CustomerService : ICustomerService
                 _logger.LogInformation($"Client ({type.ToString()}): {client.Name} {client.Phone} {client.Email} is mapped");
                 break;
             case SaleType.WorkoutProgram:
-
             default:
                 throw new ArgumentException();
         }
@@ -387,6 +386,7 @@ public class CustomerService : ICustomerService
         var diet = NutritionHelper.CalculateDiet(cpfc);
         var path = Path.Combine("Resources", "Produced", "Nutritions", NewName());
         _pdf.CreateNutrition(path, agenda, cpfc, diet);
+        sale.Nutrition = path;
         _logger.LogInformation($"Client (nutrition): nutrition {Name(path)} for {client.Email} calculated");
 
         var nutrition = new MailService.FilePath("КБЖУ и рацион.pdf", path);
@@ -415,26 +415,29 @@ public class CustomerService : ICustomerService
 
     private async Task HandleValidationErrorAsync(ValidationException ex, Dictionary<string, string> data, SaleType saleType, Client client, Agenda? agenda)
     {
-        string? existKey = data.Key("key");
-        if (string.Equals(existKey, KeyHelper.UniversalKey)) return;
-        string key; Sale sale;
+        string? key = data.Key("key");
+        if (string.Equals(key, KeyHelper.UniversalKey)) return;
+        Sale sale;
 
-        if (string.IsNullOrWhiteSpace(existKey))
+        if (string.IsNullOrWhiteSpace(key))
         {
             key = KeyHelper.NewKey();
             sale = await _db.AddSaleAsync(client, agenda, saleType,
                 dateTime: DateTime.UtcNow,
                 isDone: false,
-                isNewKey: true,
-                key: key);
+                isNewKey: true, key: key);
             _logger.LogInformation($"Db (validation of [{saleType}]): [{client.Email}] with key [{key}] added data to db. Waiting new data.");
         }
         else
         {
-            key = existKey;
-            sale = (from s in _db.Context.Sales.Include(s => s.Agenda).Include(s => s.Client)
-                    where s.Key == key
-                    select s).Single();
+            try
+            {
+                sale = _db.Context.Sales.Include(s => s.Agenda).Include(s => s.Client).Where(s => s.Key == key).Single();
+            }
+            catch (Exception e)
+            {
+                throw new CustomerExсeption($"Отсутсвует запись о продажи с ключем [{key}]", e);
+            }
             sale.Client.UpdateWith(client);
             if (agenda is not null) sale.Agenda.UpdateWith(agenda);
             _logger.LogInformation($"Db (validation again of [{saleType}]): [{client.Email}] with key [{key}] found in db. Waiting new data.");
@@ -448,10 +451,10 @@ public class CustomerService : ICustomerService
 
         /// Формирование и отправка письма
         var sb = new StringBuilder()
-            .AppendLine("При заполнении анкеты произошла ошибка: <br />");
+            .AppendLine("При заполнении анкеты произошла ошибка:<br/>");
         foreach (var error in ex.Errors)
-            sb.AppendLine($"{error.ErrorMessage} <br/>");
-        sb.AppendLine($"<br/> Пожалуйста, перейдите по ссылке и введите данные повторно! <br /><b>{link}</b>");
+            sb.AppendLine($"{error.ErrorMessage}<br/>");
+        sb.AppendLine($"<br/>Пожалуйста, перейдите по ссылке и введите данные повторно!<br/><b>{link}</b>");
         await _mail.SendMailAsync(MailType.Failure, (client.Email, client.Name), saleType.AsErrorTitle(), sb.ToString());
         _logger.LogInformation($"Mail (validation of {saleType}): sent to {client.Email}");
     }
@@ -563,7 +566,7 @@ public class CustomerService : ICustomerService
 
     private async Task CompleteSaleAsync(Dictionary<string, string> data)
     {
-        var saleId = data.Key("sale_id").AsInt(); /// почему проходит ок? при несуществ
+        var saleId = data.Key("sale_id").AsInt();
         if (saleId is not null)
         {
             await _db.СompleteAsync(saleId.Value);

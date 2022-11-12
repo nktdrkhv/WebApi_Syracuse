@@ -16,9 +16,3 @@ public enum ContactType
 {
     Email = 25, Phone = 26, Address = 27
 }
-
-public enum ProductType
-{
-    Video
-}
-

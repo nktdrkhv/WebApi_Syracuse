@@ -133,7 +133,6 @@ public class DbService : IDbService
 
     public async Task<WorkoutProgram?> FindWorkoutProgramAsync(WorkoutProgram workoutProgram)
     {
-        //todo join
         return await (from wp in Context.WorkoutPrograms
                       where wp.Gender == workoutProgram.Gender &&
                             wp.Purpouse == workoutProgram.Purpouse &&

@@ -89,15 +89,20 @@
                 return ('Екатерина');
             //prices
             case 'Алексей':
-                return (7000);
+                return ('alex');
+            //return (7000);
             case 'Антон':
-                return (8000);
+                return ('anton');
+            //return (8000);
             case 'Андрей':
-                return (6000);
+                return ('andrey');
+            //return (6000);
             case 'Мария':
-                return (6000);
+                return ('mariya');
+            //return (6000);
             case 'Екатерина':
-                return (5000);
+                return ('katya');
+            //return (5000);
         }
     }
 
@@ -107,6 +112,7 @@
             $(notLazyblock).addClass('loaded plus');
             $(notLazyblock + ':eq(' + i + ')').css('background-image', 'url("' + $(notLazyblock + ':eq(' + i + ')').data("original") + '")');
         };
+
         //ПРи клике на нашу кнопку
         $('.send-cart .tn-atom').click(function () {
             var product = '#rec501013131';

@@ -1,0 +1,142 @@
+<style>
+    div[data-record-type="744"] {
+        display: none;
+    }
+
+    .t706__product-imgdiv {
+        background-repeat: no-repeat;
+        background-size: contain !important;
+        background-color: #ffffff !important;
+    }
+</style>
+
+<style>
+    #rec501013131 .tn-form__submit {
+        display: none;
+    }
+</style>
+
+<script>
+    $(function () {
+        /* Укажи id блока, в котором находится форма */
+        const blockId = '#rec501013131';
+
+        let timerRemoveSubmit = setInterval(function () {
+            $(blockId + ' .tn-form__submit').remove();
+        }, 100);
+
+        setTimeout(function () {
+            clearInterval(timerRemoveSubmit);
+        }, 5000);
+    })
+</script>
+
+<script>
+    function getMeaning(t) {
+        switch (t) {
+            //gender
+            case 'https://static.tildacdn.com/tild3661-3562-4133-a230-616233613238/man.svg':
+                return ('Мужчина');
+            case 'https://static.tildacdn.com/tild6165-6563-4335-a361-333038333538/woman.svg':
+                return ('Женщина');
+            //purpouse
+            case 'https://static.tildacdn.com/tild6236-3236-4732-a434-656636626630/photo.svg':
+                return ('Похудение');
+            case 'https://static.tildacdn.com/tild3065-6233-4963-b833-613334333637/photo.svg':
+                return ('Поддержание');
+            case 'https://static.tildacdn.com/tild6263-6632-4235-b537-333561333539/photo.svg':
+                return ('Набор');
+            //daily_activity
+            case 'https://static.tildacdn.com/tild6537-3335-4762-b236-653430616362/__.svg':
+                return ('Малоподвижный образ жизни');
+            case 'https://static.tildacdn.com/tild6263-3961-4663-b435-326333613432/__1-2__.svg':
+                return ('Низкая активность');
+            case 'https://static.tildacdn.com/tild6132-6366-4936-b736-616531383834/__1-2__-1.svg':
+                return ('Умеренная активность');
+            case 'https://static.tildacdn.com/tild3264-6662-4430-a236-333638356138/__1-2__-4.svg':
+                return ('Очень активные');
+            case 'https://static.tildacdn.com/tild3030-6337-4631-b735-626566386537/__1-2__-2.svg':
+                return ('Предельная активность');
+            //activity_level
+            case 'https://static.tildacdn.com/tild3438-3638-4661-a137-383266373862/2.svg':
+                return ('2');
+            case 'https://static.tildacdn.com/tild3131-3036-4637-b561-393365626135/3.svg':
+                return ('3');
+            case 'https://static.tildacdn.com/tild6566-6333-4366-b838-633263336164/4.svg':
+                return ('4');
+            case 'https://static.tildacdn.com/tild6331-6233-4933-b365-343363643138/5.svg':
+                return ('5');
+            //focus
+            case 'https://static.tildacdn.com/tild3835-3566-4137-b462-343935626435/photo.svg':
+                return ('Плечи');
+            case 'https://static.tildacdn.com/tild3061-3565-4166-a436-323438646266/photo.svg':
+                return ('Спина');
+            case 'https://static.tildacdn.com/tild3366-6235-4461-a164-346131656538/photo.svg':
+                return ('Ягодицы');
+            case 'https://static.tildacdn.com/tild3766-3536-4931-a437-333134626330/photo.svg':
+                return ('Ноги');
+        }
+    }
+</script>
+
+<script>
+    $(document).ready(function () {
+        var notLazyblock = '.t744 .t-slds__bgimg';
+        for (let i = 0; i < $(notLazyblock).length; i++) {
+            $(notLazyblock).addClass('loaded plus');
+            $(notLazyblock + ':eq(' + i + ')').css('background-image', 'url("' + $(notLazyblock + ':eq(' + i + ')').data("original") + '")');
+        };
+
+        //var api = 'https://core.korablev-team.ru';
+        var api = 'https://0c28-176-209-205-147.eu.ngrok.io';
+
+        $('.send-cart .tn-atom').click(function () {
+            var formProductId = '#rec501013131';
+            var tildaProductId = '#rec507421659';
+
+            var gender = getMeaning($(formProductId + ' [name="gender"]:checked').val());
+            var age = $(formProductId + ' [name="age"]').val();
+            var height = $(formProductId + ' [name="height"]').val();
+            var weight = $(formProductId + ' [name="weight"]').val();
+            var purpouse = getMeaning($(formProductId + ' [name="purpouse"]:checked').val());
+            var daily_activity = getMeaning($(formProductId + ' [name="daily_activity"]:checked').val());
+            var activity_level = getMeaning($(formProductId + ' [name="activity_level"]:checked').val());
+            var focus = getMeaning($(formProductId + ' [name="focus"]:checked').val());
+            var diseases = '';
+            $(formProductId + ' [type="checkbox"]:checked').each(function () {
+                diseases = diseases + ($(this).val() + ';');
+            });
+            var formTrainer = $(formProductId + ' [name="trainer"]:checked').val();
+            var trainer = formTrainer.substring(formTrainer.lastIndexOf("/") + 1, formTrainer.lastIndexOf("."));
+
+            var price = new XMLHttpRequest();
+            price.open('GET', api + '/price/' + trainer);
+            //price.setRequestHeader("ngrok-skip-browser-warning", true);
+            price.send();
+            var trainerPrice = price.responseText;
+
+            var label = new XMLHttpRequest();
+            label.open('GET', api + '/label/' + trainer);
+            //label.setRequestHeader("ngrok-skip-browser-warning", true);
+            label.send();
+            var trainerLabel = label.responseText;
+
+            $(tildaProductId + ' .t744__price-value').html(trainerPrice);
+            $(tildaProductId + ' .t744 select:eq(0) option:selected').val(gender);
+            $(tildaProductId + ' .t744 select:eq(1) option:selected').val(age);
+            $(tildaProductId + ' .t744 select:eq(2) option:selected').val(height);
+            $(tildaProductId + ' .t744 select:eq(3) option:selected').val(weight);
+            $(tildaProductId + ' .t744 select:eq(4) option:selected').val(purpouse);
+            $(tildaProductId + ' .t744 select:eq(5) option:selected').val(daily_activity);
+            $(tildaProductId + ' .t744 select:eq(6) option:selected').val(activity_level);
+            $(tildaProductId + ' .t744 select:eq(7) option:selected').val(focus);
+            $(tildaProductId + ' .t744 select:eq(8) option:selected').val(diseases);
+            $(tildaProductId + ' .t744 select:eq(9) option:selected').val(trainerLabel);
+
+            setTimeout(function () { $(tildaProductId + " .t744__btn")[0].click(); }, 100);
+            return false;
+        });
+
+        $(document).on("keydown", ".t-form", function (event) { return event.key != "Enter"; });
+    });
+</script>
