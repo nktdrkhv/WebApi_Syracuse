@@ -18,7 +18,6 @@
 
 <script>
     $(function () {
-        /* Укажи id блока, в котором находится форма */
         const blockId = '#rec501013131';
 
         let timerRemoveSubmit = setInterval(function () {
@@ -87,8 +86,18 @@
             $(notLazyblock + ':eq(' + i + ')').css('background-image', 'url("' + $(notLazyblock + ':eq(' + i + ')').data("original") + '")');
         };
 
-        //var api = 'https://core.korablev-team.ru';
-        var api = 'https://0c28-176-209-205-147.eu.ngrok.io';
+        var api = 'https://core.korablev-team.ru';
+
+        $('.uc-posing .t-submit').click(function (e) {
+            e.preventDefault();
+            var posingBlock = '#rec513072040';
+            var diseases = '';
+            $(posingBlock + ' [type="checkbox"]:checked').each(function () {
+                diseases = diseases + ($(this).val() + ';');
+            });
+            alert(diseases);
+            return false;
+        });
 
         $('.send-cart .tn-atom').click(function () {
             var formProductId = '#rec501013131';
@@ -111,13 +120,11 @@
 
             var price = new XMLHttpRequest();
             price.open('GET', api + '/price/' + trainer);
-            //price.setRequestHeader("ngrok-skip-browser-warning", true);
             price.send();
             var trainerPrice = price.responseText;
 
             var label = new XMLHttpRequest();
             label.open('GET', api + '/label/' + trainer);
-            //label.setRequestHeader("ngrok-skip-browser-warning", true);
             label.send();
             var trainerLabel = label.responseText;
 
@@ -139,4 +146,8 @@
 
         $(document).on("keydown", ".t-form", function (event) { return event.key != "Enter"; });
     });
+</script>
+
+<script>
+
 </script>

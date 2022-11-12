@@ -2,28 +2,23 @@
     "version": "0.2.0",
     "configurations": [
         {
-            // Use IntelliSense to find out which attributes exist for C# debugging
-            // Use hover for the description of the existing attributes
-            // For further information visit https://github.com/OmniSharp/omnisharp-vscode/blob/master/debugger-launchjson.md
             "name": ".NET Core Launch (web)",
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build",
-            // If you have changed target frameworks, make sure to update the program path.
             "program": "${workspaceFolder}/bin/Debug/net6.0/WebApi_Syracuse.dll",
             "args": [],
             "cwd": "${workspaceFolder}",
             "stopAtEntry": false,
-            // Enable launching a web browser when ASP.NET Core starts. For more information: https://aka.ms/VSCode-CS-LaunchJson-WebBrowser
             "env": {
                 "ASPNETCORE_ENVIRONMENT": "Development",
                 "API_TOKEN": "f30677a6-0e15-4e64-87b0-2097a9fdd53a",
                 "UNIVERSAL_KEY": "5d7ca0a5-3740-45ba-8062-2086abc30a4c",
-                "MAIL_USER": "noreply@demo.nktdrkhv.ru",
-                "MAIL_PASS": "spivHfehK237GrGvmqE4",
+                "MAIL_USER": "noreply@korablev-team.ru",
+                "MAIL_PASS": "2vqA5XwWAPTNiTvR81wH",
                 "MAIL_FROM_NAME": "KorablevTeam",
-                "MAIL_FROM_ADDR": "noreply@demo.nktdrkhv.ru",
-                "MAIL_FAKE": "yes"
+                "MAIL_FROM_ADDR": "noreply@korablev-team.ru",
+                "MAIL_FAKE": "no"
             },
             "sourceFileMap": {
                 "/Views": "${workspaceFolder}/Views"

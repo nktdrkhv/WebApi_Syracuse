@@ -40,6 +40,9 @@ builder.Services.AddScoped<IPdfService, PdfService>();
 builder.Services.AddScoped<IMailService, MailService>();
 builder.Services.AddScoped<IDbService, DbService>();
 
+if (builder.Environment.IsDevelopment())
+    builder.Services.AddLettuceEncrypt();
+
 builder.Services.AddCors(options =>
      options.AddDefaultPolicy(policy => policy.WithOrigins("https://korablev-team.ru").AllowAnyMethod().AllowAnyHeader()));
 builder.Services.AddCors();

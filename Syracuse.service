@@ -1,0 +1,28 @@
+[Unit]
+Description=Korablev Team
+
+[Service]
+Type=notify
+WorkingDirectory=/srv/Syracuse
+ExecStart=/usr/bin/dotnet /srv/Syracuse/WebApi_Syracuse.dll
+SyslogIdentifier=Korablev Core
+User=root
+
+Restart=always     
+RestartSec=5
+KillSignal=SIGINT
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false
+
+Environment=API_TOKEN='f30677a6-0e15-4e64-87b0-2097a9fdd53a' 
+Environment=UNIVERSAL_KEY='5d7ca0a5-3740-45ba-8062-2086abc30a4c'
+Environment=MAIL_USER='noreply@korablev-team.ru'
+Environment=MAIL_PASS='2vqA5XwWAPTNiTvR81wH'
+Environment=MAIL_FROM_NAME='KorablevTeam'
+Environment=MAIL_FROM_ADDR='noreply@korablev-team.ru'
+Environment=MAIL_FAKE='no'
+
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target

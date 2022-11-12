@@ -9,5 +9,4 @@ public class Product
     public int Price { get; set; }
     public string Label { get; set; }
     public string? Content { get; set; }
-    public List<Product>? Сontains { get; set; }
 }
