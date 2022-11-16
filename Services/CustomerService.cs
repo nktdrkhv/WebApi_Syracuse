@@ -44,7 +44,7 @@ public class CustomerService : ICustomerService
         {
             "begginer" => HandleBegginerFormAsync(data),
             "profi" => HandleProfiFormAsync(data),
-            "coach" => HandleCoachFormAsync(data),
+            "online-coach" => HandleCoachFormAsync(data),
             "standart" => HandleStandartFormAsync(data),
             "pro" => HandleProFormAsync(data),
             "posing" => HandlePosingFormAsync(data),
@@ -52,7 +52,6 @@ public class CustomerService : ICustomerService
 
             "add_worker" => Task.Run(() => AddWorker(data)),
             "delete_worker" => Task.Run(() => DeleteWorker(data)),
-
             "add_contact" => Task.Run(() => AddContact(data)),
             "delete_contact" => Task.Run(() => DeleteContact(data)),
 
@@ -191,10 +190,12 @@ public class CustomerService : ICustomerService
             case SaleType.Standart:
                 var messageStandart = "Благодарим за покупку программы питания «Standart»! В течение следующего дня (в выходные может потребоваться больше времени) наш тренер отправит вам вашу персональную программу питания.";
                 await _mail.SendMailAsync(MailType.Awaiting, sale.Client.Email, sale.Client.Name, "Standart питание: КБЖУ + рацион", messageStandart);
+                _logger.LogInformation($"Mail (nutrition-standart-successful): sent to {sale.Client.Email}");
                 break;
             case SaleType.Pro:
                 var messagePro = "Благодарим за покупку программы питания «Pro»! В течение следующего дня (в выходные может потребоваться больше времени) наш тренер отправит вам вашу персональную программу питания и рецепты.";
                 await _mail.SendMailAsync(MailType.Awaiting, sale.Client.Email, sale.Client.Name, "PRO питание: КБЖУ + рацион + книга рецептов", messagePro);
+                _logger.LogInformation($"Mail (nutrition-pro-successful): sent to {sale.Client.Email}");
                 break;
             case SaleType.Coach:
                 var messageCoach = $"В течение следующего дня (в выходные может потребоваться больше времени) наш тренер свяжется с вами для начала тренировок.<br/><br/><b>Контакты тренера:</b><br/>{await _db.GetCoachContactsAsync(sale?.Agenda?.Trainer) ?? "<i>не указаны</i>"}";
@@ -202,14 +203,37 @@ public class CustomerService : ICustomerService
                 _logger.LogInformation($"Mail (coach): sent to {sale.Client.Email}");
                 break;
             case SaleType.Endo:
-                var messageEndo = $"В течение следующего дня (в выходные может потребоваться больше времени) <i>наш эндокринолог</i> свяжется с вами для консультации";
+                var messageEndo = $"Благодарим за покупку! В течение следующего дня (в выходные может потребоваться больше времени) <i>наш эндокринолог</i> свяжется с вами для консультации.";
                 await _mail.SendMailAsync(MailType.Success, sale.Client.Email, sale.Client.Name, "Консультация эндокринолога", messageEndo);
                 _logger.LogInformation($"Mail (endo): sent to {sale.Client.Email}");
                 break;
             case SaleType.Posing:
+                var sb = new StringBuilder();
+                foreach (var video in sale.Product ?? Enumerable.Empty<Product>())
+                    if (video.Includes is List<Product> children && children.Count != 0)
+                    {
+                        sb.Append($"<b>{video.Label}</b><br/><br/>");
+                        foreach (var child in children) sb.Append(VideoList(child));
+                    }
+                    else
+                        sb.Append(VideoList(video));
+                var messagePosing = $"Благодарим за покупку! Ниже Вы можете увидеть ссылки на <i>приватные</i> видео-инструкции:<br/><br/>{sb.ToString()}";
+                await _mail.SendMailAsync(MailType.Success, sale.Client.Email, sale.Client.Name, "Уроки позинга Fitness Bikini", messagePosing);
+                _logger.LogInformation($"Mail (posing): sent to {sale.Client.Email}");
                 break;
             default:
                 throw new ArgumentException();
+        }
+
+        string VideoList(Product video)
+        {
+            var sb = new StringBuilder();
+            sb.Append($"<b><i>{video.Label}</i></b><br/>");
+            if (video.Content.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) is string[] links && links.Length > 0)
+                foreach (var link in links)
+                    sb.Append(" > " + link + "<br/>");
+            sb.Append("<br/>");
+            return sb.ToString();
         }
     }
 
@@ -266,6 +290,10 @@ public class CustomerService : ICustomerService
                 _logger.LogInformation($"Mail (endo): info about {sale.Client.Email} is sent to admins");
                 break;
             case SaleType.Posing:
+                var messagePosing = $"Покупка видео-уроков: <br/>{LogHelper.ClientInfo(sale.Client).Replace("\n", "<br/>")}";
+                foreach (var admin in await _db.GetInnerEmailsAsync(admins: true))
+                    await _mail.SendMailAsync(MailType.Inner, admin, "Покупка видео-уроков", messagePosing);
+                _logger.LogInformation($"Mail (endo): info about {sale.Client.Email} is sent to admins");
                 break;
             default:
                 throw new ArgumentException();
@@ -286,14 +314,14 @@ public class CustomerService : ICustomerService
 
     private async Task HandlePosingFormAsync(Dictionary<string, string> data)
     {
-        await Task.Yield();
-    }
-
-    private async Task HandleEndoFormAsync(Dictionary<string, string> data)
-    {
         Map(SaleType.Endo, data, out var client, out _);
 
-        var sale = await _db.AddSaleAsync(client, null, SaleType.Endo, DateTime.UtcNow, true);
+        var sale = await _db.AddSaleAsync(client, null, SaleType.Posing, DateTime.UtcNow, false);
+        sale.OrderId = int.Parse(data["orderid"]);
+
+        sale.Product = new();
+        foreach (var productLabel in data["videos"].Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            sale.Product.Add(_db.Context.Products.Where(p => p.Label == productLabel).Select(p => p).Single());
 
         await ForwardSuccessEmailAsync(sale);
         sale.IsSuccessEmailSent = true;
@@ -301,6 +329,29 @@ public class CustomerService : ICustomerService
 
         await NotifyAdminsAsync(sale);
         sale.IsAdminNotified = true;
+        _db.Context.Sales.Update(sale);
+
+        sale.IsDone = true;
+        _db.Context.Sales.Update(sale);
+    }
+
+    private async Task HandleEndoFormAsync(Dictionary<string, string> data)
+    {
+        Map(SaleType.Endo, data, out var client, out _);
+
+        var sale = await _db.AddSaleAsync(client, null, SaleType.Endo, DateTime.UtcNow, false);
+        sale.OrderId = int.Parse(data["orderid"]);
+        sale.Product = new() { _db.Context.Products.Where(p => p.Code == "endo").Single() };
+
+        await ForwardSuccessEmailAsync(sale);
+        sale.IsSuccessEmailSent = true;
+        _db.Context.Sales.Update(sale);
+
+        await NotifyAdminsAsync(sale);
+        sale.IsAdminNotified = true;
+        _db.Context.Sales.Update(sale);
+
+        sale.IsDone = true;
         _db.Context.Sales.Update(sale);
     }
 
@@ -314,8 +365,10 @@ public class CustomerService : ICustomerService
         key = key?.Equals(KeyHelper.UniversalKey) is true ? null : key;
         var sale = await _db.AddSaleAsync(client, agenda, SaleType.Coach,
             dateTime: DateTime.UtcNow,
-            isDone: true,
+            isDone: false,
             isNewKey: false, key: key);
+        sale.OrderId = int.Parse(data["orderid"]);
+        sale.Product = new() { _db.Context.Products.Where(p => p.Code == agenda.Trainer!).Single() };
 
         await ForwardSuccessEmailAsync(sale);
         sale.IsSuccessEmailSent = true;
@@ -323,6 +376,9 @@ public class CustomerService : ICustomerService
 
         await NotifyAdminsAsync(sale);
         sale.IsAdminNotified = true;
+        _db.Context.Sales.Update(sale);
+
+        sale.IsDone = true;
         _db.Context.Sales.Update(sale);
     }
 
@@ -341,6 +397,8 @@ public class CustomerService : ICustomerService
             dateTime: DateTime.UtcNow,
             isDone: false,
             isNewKey: false, key: key);
+        sale.OrderId = int.Parse(data["orderid"]);
+        sale.Product = new() { _db.Context.Products.Where(p => p.Code == saleType.ToString().ToLower()).Single() };
 
         await ForwardSuccessEmailAsync(sale);
         sale.IsSuccessEmailSent = true;
@@ -381,6 +439,12 @@ public class CustomerService : ICustomerService
             dateTime: DateTime.UtcNow,
             isDone: false,
             isNewKey: false, key: key);
+        sale.OrderId = int.Parse(data["orderid"]);
+        sale.Product = new() { _db.Context.Products.Where(p => p.Code == saleType.ToString().ToLower()).Single() };
+
+        await ForwardSuccessEmailAsync(sale);
+        sale.IsSuccessEmailSent = true;
+        _db.Context.Sales.Update(sale);
 
         var cpfc = NutritionHelper.CalculateCpfc(agenda);
         var diet = NutritionHelper.CalculateDiet(cpfc);
@@ -392,9 +456,6 @@ public class CustomerService : ICustomerService
         var nutrition = new MailService.FilePath("КБЖУ и рацион.pdf", path);
         var recepies = new MailService.FilePath("Книга рецептов.pdf", Path.Combine("Resources", "Produced", "Recepies.pdf"));
         var instructions = new MailService.FilePath("Инструкции.pdf", Path.Combine("Resources", "Produced", "Instructions.pdf"));
-
-        await ForwardSuccessEmailAsync(sale);
-        sale.IsSuccessEmailSent = true;
 
         switch (saleType)
         {
@@ -409,6 +470,10 @@ public class CustomerService : ICustomerService
                 BackgroundJob.Schedule<IServiceProvider>(sp => ForwardMail(sp, contentPro, sale), ScheduleHelper.GetSchedule());
                 break;
         }
+
+        await NotifyAdminsAsync(sale);
+        sale.IsAdminNotified = true;
+        _db.Context.Sales.Update(sale);
     }
 
     // --------------------------------------------------------------------------------
@@ -459,6 +524,8 @@ public class CustomerService : ICustomerService
         _logger.LogInformation($"Mail (validation of {saleType}): sent to {client.Email}");
     }
 
+    // --------------------------------------------------------------------------------
+
     private async Task AddWorkoutProgramAsync(Dictionary<string, string> data)
     {
         var workoutProgram = _mapper.Map<WorkoutProgram>(data);
@@ -492,6 +559,8 @@ public class CustomerService : ICustomerService
         await Base64Helper.DecodeToPdf(base64string, path);
         _logger.LogInformation($"Admin (load Instructions): Instructions is loaded.");
     }
+
+    // --------------------------------------------------------------------------------
 
     private void AddWorker(Dictionary<string, string> data)
     {

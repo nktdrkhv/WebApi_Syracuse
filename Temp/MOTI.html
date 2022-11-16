@@ -3,25 +3,35 @@
         display: none;
     }
 
+    .t706__cartwin-heading {
+        color: black;
+    }
+
+    .t706__product-title {
+        pointer-events: none;
+        cursor: default;
+        text-decoration: none;
+    }
+
+    .t706__cartwin-bottom {
+        display: none;
+    }
+
     .t706__product-imgdiv {
         background-repeat: no-repeat;
         background-size: contain !important;
         background-color: #ffffff !important;
     }
-</style>
 
-<style>
-    #rec501013131 .tn-form__submit {
+    .tn-form__submit {
         display: none;
     }
 </style>
 
 <script>
     $(function () {
-        const blockId = '#rec501013131';
-
         let timerRemoveSubmit = setInterval(function () {
-            $(blockId + ' .tn-form__submit').remove();
+            $('#rec474292642' + ' .tn-form__submit').remove();
         }, 100);
 
         setTimeout(function () {
@@ -74,9 +84,22 @@
                 return ('Ягодицы');
             case 'https://static.tildacdn.com/tild3766-3536-4931-a437-333134626330/photo.svg':
                 return ('Ноги');
+            default:
+                return (0);
         }
     }
 </script>
+
+<!-- $('.uc-posing .t-submit').click(function (e) {
+e.preventDefault();
+var posingBlock = '#rec513072040';
+var diseases = '';
+$(posingBlock + ' [type="checkbox"]:checked').each(function () {
+diseases = diseases + ($(this).val() + ';');
+});
+alert(diseases);
+return false;
+}); -->
 
 <script>
     $(document).ready(function () {
@@ -88,20 +111,150 @@
 
         var api = 'https://core.korablev-team.ru';
 
-        $('.uc-posing .t-submit').click(function (e) {
-            e.preventDefault();
-            var posingBlock = '#rec513072040';
-            var diseases = '';
-            $(posingBlock + ' [type="checkbox"]:checked').each(function () {
-                diseases = diseases + ($(this).val() + ';');
-            });
-            alert(diseases);
+        $('.beginner-b .tn-atom').click(function () {
+            var formProductId = '#form474442118';
+            var tildaProductId = '#rec513592447';
+
+            var gender = getMeaning($(formProductId + ' [name="gender"]:checked').val());
+            var purpouse = getMeaning($(formProductId + ' [name="purpouse"]:checked').val());
+            var activity_level = getMeaning($(formProductId + ' [name="activity_level"]:checked').val());
+
+            if (gender == 0 || purpouse == 0 || activity_level == 0) {
+                alert('Внимание: заполнены не все доступные поля');
+                return;
+            }
+
+            var price = new XMLHttpRequest();
+            price.open('GET', api + '/price/' + 'beginner', false);
+            price.send(null);
+            var beginnerPrice = price.responseText;
+
+            $(tildaProductId + ' .t744__price-value').html(beginnerPrice);
+            $(tildaProductId + ' .t744 select:eq(0) option:selected').val(gender);
+            $(tildaProductId + ' .t744 select:eq(1) option:selected').val(purpouse);
+            $(tildaProductId + ' .t744 select:eq(2) option:selected').val(activity_level);
+
+            var good = $(tildaProductId + ' .t744__btn');
+            setTimeout(function () { good.click(); }, 100);
             return false;
         });
 
-        $('.send-cart .tn-atom').click(function () {
-            var formProductId = '#rec501013131';
-            var tildaProductId = '#rec507421659';
+        $('.profi-b .tn-atom').click(function () {
+            var formProductId = '#form474442490';
+            var tildaProductId = '#rec513614144';
+
+            var gender = getMeaning($(formProductId + ' [name="gender"]:checked').val());
+            var purpouse = getMeaning($(formProductId + ' [name="purpouse"]:checked').val());
+            var activity_level = getMeaning($(formProductId + ' [name="activity_level"]:checked').val());
+            var focus = getMeaning($(formProductId + ' [name="focus"]:checked').val());
+            var diseases = $(formProductId + ' [name="diseases"]').val();
+            // $(formProductId + ' [type="checkbox"]:checked').each(function () {
+            //     diseases = diseases + ($(this).val() + '; ');
+            // });
+
+            if (gender == 0 || purpouse == 0 || activity_level == 0 || focus == 0) {
+                alert('Внимание: заполнены не все доступные поля');
+                return;
+            }
+
+            var price = new XMLHttpRequest();
+            price.open('GET', api + '/price/' + 'profi', false);
+            price.send(null);
+            var profiPrice = price.responseText;
+
+            $(tildaProductId + ' .t744__price-value').html(profiPrice);
+            $(tildaProductId + ' .t744 select:eq(0) option:selected').val(gender);
+            $(tildaProductId + ' .t744 select:eq(1) option:selected').val(purpouse);
+            $(tildaProductId + ' .t744 select:eq(2) option:selected').val(activity_level);
+            $(tildaProductId + ' .t744 select:eq(3) option:selected').val(focus);
+            $(tildaProductId + ' .t744 select:eq(4) option:selected').val(diseases);
+
+            var good = $(tildaProductId + ' .t744__btn');
+            setTimeout(function () { good.click(); }, 100);
+            return false;
+        });
+
+        $('.standart-b .tn-atom').click(function () {
+            var formProductId = '#form474442617';
+            var tildaProductId = '#rec513592730';
+
+            var gender = getMeaning($(formProductId + ' [name="gender"]:checked').val());
+            var age = $(formProductId + ' [name="age"]').val();
+            var height = $(formProductId + ' [name="height"]').val();
+            var weight = $(formProductId + ' [name="weight"]').val();
+            var purpouse = getMeaning($(formProductId + ' [name="purpouse"]:checked').val());
+            var daily_activity = getMeaning($(formProductId + ' [name="daily_activity"]:checked').val());
+
+            if (gender == 0 || age == 0 || height == 0 || weight == 0 || purpouse == 0 || daily_activity == 0) {
+                alert('Внимание: заполнены не все доступные поля');
+                return;
+            }
+
+            if (age < 10 || age > 99 || height < 100 || height > 250 || weight < 30 || weight > 200) {
+                alert('Внимание: некоторые поля заполнены некорректно');
+                return;
+            }
+
+            var price = new XMLHttpRequest();
+            price.open('GET', api + '/price/' + 'standart', false);
+            price.send(null);
+            var standartPrice = price.responseText;
+
+            $(tildaProductId + ' .t744__price-value').html(standartPrice);
+            $(tildaProductId + ' .t744 select:eq(0) option:selected').val(gender);
+            $(tildaProductId + ' .t744 select:eq(1) option:selected').val(age);
+            $(tildaProductId + ' .t744 select:eq(2) option:selected').val(height);
+            $(tildaProductId + ' .t744 select:eq(3) option:selected').val(weight);
+            $(tildaProductId + ' .t744 select:eq(4) option:selected').val(purpouse);
+            $(tildaProductId + ' .t744 select:eq(5) option:selected').val(daily_activity);
+
+            var good = $(tildaProductId + ' .t744__btn');
+            setTimeout(function () { good.click(); }, 100);
+            return false;
+        });
+
+        $('.pro-b .tn-atom').click(function () {
+            var formProductId = '#form474442647';
+            var tildaProductId = '#rec513593005';
+
+            var gender = getMeaning($(formProductId + ' [name="gender"]:checked').val());
+            var age = $(formProductId + ' [name="age"]').val();
+            var height = $(formProductId + ' [name="height"]').val();
+            var weight = $(formProductId + ' [name="weight"]').val();
+            var purpouse = getMeaning($(formProductId + ' [name="purpouse"]:checked').val());
+            var daily_activity = getMeaning($(formProductId + ' [name="daily_activity"]:checked').val());
+
+            if (gender == 0 || age == 0 || height == 0 || weight == 0 || purpouse == 0 || daily_activity == 0) {
+                alert('Внимание: заполнены не все доступные поля');
+                return;
+            }
+
+            if (age < 10 || age > 99 || height < 100 || height > 250 || weight < 30 || weight > 200) {
+                alert('Внимание: некоторые поля заполнены некорректно');
+                return;
+            }
+
+            var price = new XMLHttpRequest();
+            price.open('GET', api + '/price/' + 'pro', false);
+            price.send(null);
+            var proPrice = price.responseText;
+
+            $(tildaProductId + ' .t744__price-value').html(proPrice);
+            $(tildaProductId + ' .t744 select:eq(0) option:selected').val(gender);
+            $(tildaProductId + ' .t744 select:eq(1) option:selected').val(age);
+            $(tildaProductId + ' .t744 select:eq(2) option:selected').val(height);
+            $(tildaProductId + ' .t744 select:eq(3) option:selected').val(weight);
+            $(tildaProductId + ' .t744 select:eq(4) option:selected').val(purpouse);
+            $(tildaProductId + ' .t744 select:eq(5) option:selected').val(daily_activity);
+
+            var good = $(tildaProductId + ' .t744__btn');
+            setTimeout(function () { good.click(); }, 100);
+            return false;
+        });
+
+        $('.coach-b .tn-atom').click(function () {
+            var formProductId = '#form474292642';
+            var tildaProductId = '#rec513592168';
 
             var gender = getMeaning($(formProductId + ' [name="gender"]:checked').val());
             var age = $(formProductId + ' [name="age"]').val();
@@ -113,20 +266,30 @@
             var focus = getMeaning($(formProductId + ' [name="focus"]:checked').val());
             var diseases = '';
             $(formProductId + ' [type="checkbox"]:checked').each(function () {
-                diseases = diseases + ($(this).val() + ';');
+                diseases = diseases + ($(this).val() + '; ');
             });
             var formTrainer = $(formProductId + ' [name="trainer"]:checked').val();
+            if (typeof formTrainer == "undefined") return;
             var trainer = formTrainer.substring(formTrainer.lastIndexOf("/") + 1, formTrainer.lastIndexOf("."));
 
+            if (gender == 0 || age == 0 || height == 0 || weight == 0 || purpouse == 0 || daily_activity == 0 || activity_level == 0 || focus == 0 || formTrainer == 0) {
+                alert('Внимание: заполнены не все доступные поля');
+                return;
+            }
+            if (age < 10 || age > 99 || height < 100 || height > 250 || weight < 30 || weight > 200) {
+                alert('Внимание: некоторые поля заполнены некорректно');
+                return;
+            }
+
             var price = new XMLHttpRequest();
-            price.open('GET', api + '/price/' + trainer);
-            price.send();
+            price.open('GET', api + '/price/' + trainer, false);
+            price.send(null);
             var trainerPrice = price.responseText;
 
             var label = new XMLHttpRequest();
-            label.open('GET', api + '/label/' + trainer);
-            label.send();
-            var trainerLabel = label.responseText;
+            label.open('GET', api + '/label/' + trainer, false);
+            label.send(null);
+            var trainerLabel = label.responseText.slice(1, -1);
 
             $(tildaProductId + ' .t744__price-value').html(trainerPrice);
             $(tildaProductId + ' .t744 select:eq(0) option:selected').val(gender);
@@ -140,14 +303,11 @@
             $(tildaProductId + ' .t744 select:eq(8) option:selected').val(diseases);
             $(tildaProductId + ' .t744 select:eq(9) option:selected').val(trainerLabel);
 
-            setTimeout(function () { $(tildaProductId + " .t744__btn")[0].click(); }, 100);
+            var good = $(tildaProductId + ' .t744__btn');
+            setTimeout(function () { good.click(); }, 100);
             return false;
         });
 
         $(document).on("keydown", ".t-form", function (event) { return event.key != "Enter"; });
     });
-</script>
-
-<script>
-
 </script>

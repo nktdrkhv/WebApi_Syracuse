@@ -5,6 +5,7 @@ using AutoMapper;
 using FluentValidation;
 using Hangfire;
 using Hangfire.Storage.SQLite;
+using Microsoft.EntityFrameworkCore;
 
 CultureInfo.CurrentCulture = new CultureInfo("ru-RU");
 
@@ -40,7 +41,7 @@ builder.Services.AddScoped<IPdfService, PdfService>();
 builder.Services.AddScoped<IMailService, MailService>();
 builder.Services.AddScoped<IDbService, DbService>();
 
-if (builder.Environment.IsDevelopment())
+if (!builder.Environment.IsDevelopment())
     builder.Services.AddLettuceEncrypt();
 
 builder.Services.AddCors(options =>
@@ -63,7 +64,7 @@ if (!app.Environment.IsDevelopment())
             {
                 var exceptionObject = context.Features.Get<IExceptionHandlerFeature>();
                 context.Response.StatusCode = StatusCodes.Status500InternalServerError;
-                app.Logger.LogWarning($"From Exception handler: {exceptionObject.Error.Message} \n {exceptionObject.Error.StackTrace}");
+                app.Logger.LogError(exceptionObject.Error, $"Upper exception handler");
                 return Task.CompletedTask;
             });
     });
@@ -73,7 +74,7 @@ app.UseCors();
 
 // --------------------------------------------------------------------------------
 
-app.MapPost("/tilda", (HttpContext context, TildaOrder json, ICustomerService customerService) =>
+app.MapPost("/tilda", (HttpContext context, TildaOrder json, ICustomerService customerService, IDbService db) =>
 {
     if (!string.Equals(json.Token, KeyHelper.ApiToken)) return Results.Unauthorized();
     if (json.Test == "test") return Results.Ok("test");
@@ -81,15 +82,37 @@ app.MapPost("/tilda", (HttpContext context, TildaOrder json, ICustomerService cu
     var data = new Dictionary<string, string>();
     data["name"] = json.Name;
     data["email"] = json.Email;
-    data["phone"] = json.Email;
+    data["phone"] = json.Phone;
     data["orderid"] = json.Payment.OrderId;
-    var product = json.Payment.Products.First();
-    data["price"] = product.Price;
-    foreach (var option in product.Options)
+    var formname = json.Payment.Products.First().ExternalId.Split('#').First();
+    data["formname"] = formname;
+
+    foreach (var option in json.Payment.Products.First()?.Options ?? Enumerable.Empty<ProductOption>())
+        if (option.Option.AsValue().AsCode() is string code)
+            data[code] = option.Variant;
+
+    if (formname == "online-coach")
     {
-        var optionName = option.Option;
-        var variantName = option.Variant;
-        data[optionName] = variantName;
+        var productCode = db.Context.Products.Where(p => p.Label == data["trainer"]).Select(p => p.Code).Single();
+        var productExpectedPaidAmount = db.Context.Products.Where(p => p.Code == productCode).Select(p => p.Price).Single();
+        if (int.Parse(json.Payment.Amount) != productExpectedPaidAmount)
+            return Results.Problem("Incorrect paiment");
+        data["trainer"] = productCode;
+    }
+    else if (formname == "posing")
+    {
+        int finalAmount = 0;
+        foreach (var productLabel in data["videos"].Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            finalAmount += GetPrice(db.Context, db.Context.Products.Where(p => p.Label == productLabel).Select(p => p.Code).Single());
+        if (finalAmount != int.Parse(json.Payment.Amount))
+            return Results.Problem("Incorrect paiment");
+    }
+    else
+    {
+        var productPaidAmount = int.Parse(json.Payment.Amount);
+        var productExpectedPaidAmount = db.Context.Products.Where(p => p.Code == formname).Select(p => p.Price).Single();
+        if (productPaidAmount != productExpectedPaidAmount)
+            return Results.Problem("Incorrect paiment");
     }
 
     app.Logger.LogInformation(message: LogHelper.RawData(data));
@@ -166,11 +189,10 @@ app.MapGet("/admin/{table}", async (string table, string? token, IDbService db) 
 app.MapGet("/price/{product}", (string product) =>
 {
     using var context = new ApplicationContext();
-    var price = context.Products.Where(p => p.Code == product).Select(p => p.Price).SingleOrDefault();
+    var price = GetPrice(context, product);
     app.Logger.LogInformation($"Price for [{product}] is [{price}] rubles");
     return Results.Ok(price);
-})/*.RequireCors(cpb => cpb.AllowAnyHeader().AllowAnyMethod().AllowAnyOrigin())*/;
-
+});
 
 app.MapGet("/label/{product}", (string product) =>
 {
@@ -178,12 +200,7 @@ app.MapGet("/label/{product}", (string product) =>
     var label = context.Products.Where(p => p.Code == product).Select(p => p.Label).SingleOrDefault();
     app.Logger.LogInformation($"Label for [{product}] is [{label}]");
     return Results.Ok(label);
-})/*.RequireCors(cpb => cpb.AllowAnyHeader().AllowAnyMethod().AllowAnyOrigin())*/;
-
-// app.MapPost("/upload/{file}", (string file, string? token, IDbService) =>
-// {
-
-// });
+});
 
 // --------------------------------------------------------------------------------
 if (app.Environment.IsDevelopment())
@@ -202,3 +219,19 @@ if (app.Environment.IsDevelopment())
 // --------------------------------------------------------------------------------
 
 app.Run();
+
+// --------------------------------------------------------------------------------
+
+int GetPrice(ApplicationContext context, string productCode)
+{
+    var item = context.Products.Include(p => p.Includes).Where(p => p.Code == productCode).SingleOrDefault();
+    if (item.Price == 0 && item.Includes is List<Product> goods)
+    {
+        int price = 0;
+        foreach (var elem in goods)
+            price += elem.Price;
+        return price;
+    }
+    else
+        return item.Price;
+}

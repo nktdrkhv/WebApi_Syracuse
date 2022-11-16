@@ -1,0 +1,118 @@
+<style>
+    div[data-record-type="744"] {
+        display: none;
+    }
+
+    .t706__cartwin-heading {
+        color: black;
+    }
+
+    .t706__product-title {
+        pointer-events: none;
+        cursor: default;
+        text-decoration: none;
+    }
+
+    .t706__cartwin-bottom {
+        display: none;
+    }
+
+    .t706__product-imgdiv {
+        background-repeat: no-repeat;
+        background-size: contain !important;
+        background-color: #ffffff !important;
+    }
+
+    .tn-form__submit {
+        display: none;
+    }
+</style>
+
+<script>
+    $(function () {
+        let timerRemoveSubmit = setInterval(function () {
+            $('#rec474292642' + ' .tn-form__submit').remove();
+        }, 100);
+
+        setTimeout(function () {
+            clearInterval(timerRemoveSubmit);
+        }, 5000);
+    })
+</script>
+
+<script>
+    $(document).ready(function () {
+        var carousel = $('#carousel_474811156');
+        carousel.data('slidePos', "3");
+
+        var notLazyblock = '.t744 .t-slds__bgimg';
+        for (let i = 0; i < $(notLazyblock).length; i++) {
+            $(notLazyblock).addClass('loaded plus');
+            $(notLazyblock + ':eq(' + i + ')').css('background-image', 'url("' + $(notLazyblock + ':eq(' + i + ')').data("original") + '")');
+        };
+
+        var api = 'https://core.korablev-team.ru';
+
+        $('#rec474811156 p:contains("эндокринолог")').closest('.t994__content').find('.t994__btn').click(function () {
+            var tildaProductId = '#rec513966074';
+            var priceRequest = new XMLHttpRequest();
+            priceRequest.open('GET', api + '/price/' + 'endo', false);
+            priceRequest.send(null);
+            var price = priceRequest.response;
+            $(tildaProductId + ' .t744__price-value').html(price);
+            var good = $(tildaProductId + ' .t744__btn');
+            setTimeout(function () { good.click(); }, 100);
+            return false;
+        })
+
+        $('#rec476980109 .t784__btn').click(function () {
+            var tildaProductId = '#rec513966074';
+            var priceRequest = new XMLHttpRequest();
+            priceRequest.open('GET', api + '/price/' + 'endo', false);
+            priceRequest.send(null);
+            var price = priceRequest.response;
+            $(tildaProductId + ' .t744__price-value').html(price);
+            var good = $(tildaProductId + ' .t744__btn');
+            setTimeout(function () { good.click(); }, 100);
+            return false;
+        });
+
+        $('#rec475648915 .t-submit').click(function (e) {
+            e.stopImmediatePropagation();
+            var tildaProductId = '#rec513966596';
+
+            var videos = '';
+            var videoPrice = 0;
+
+            $('#rec475648915' + ' [type="checkbox"]:checked').each(function () {
+                var link = $(this).parent('.t-img-select__control').find('[data-original]').data('original');
+                var code = link.substring(link.lastIndexOf("/") + 1, link.lastIndexOf("."));
+
+                var priceRequest = new XMLHttpRequest();
+                priceRequest.open('GET', api + '/price/' + code, false);
+                priceRequest.send(null);
+
+                var labelRequest = new XMLHttpRequest();
+                labelRequest.open('GET', api + '/label/' + code, false);
+                labelRequest.send(null);
+
+                videoPrice = videoPrice + parseInt(priceRequest.response);
+                videos = videos + (labelRequest.responseText.slice(1, -1) + '; ');
+            });
+
+            if (videoPrice === 0) {
+                alert('Пожалуйста, выберите видео!')
+                return;
+            }
+
+            $(tildaProductId + ' .t744__price-value').html(videoPrice);
+            $(tildaProductId + ' .t744 select:eq(0) option:selected').val(videos);
+
+            var good = $(tildaProductId + ' .t744__btn');
+            setTimeout(function () { good.click(); }, 100);
+            return false;
+        });
+
+        $(document).on("keydown", ".t-form", function (event) { return event.key != "Enter"; });
+    });
+</script>

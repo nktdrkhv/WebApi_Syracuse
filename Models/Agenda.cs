@@ -82,7 +82,7 @@ public class AgendaValidator : AbstractValidator<Agenda>
             .When(_ => SaleType is SaleType.Coach or SaleType.Standart or SaleType.Pro);
         RuleFor(customer => customer.Weight)
             .NotNull().WithName("Вес")
-            .InclusiveBetween(30, 300).WithMessage("Укажите корректный вес")
+            .InclusiveBetween(30, 200).WithMessage("Укажите корректный вес")
             .When(_ => SaleType is SaleType.Coach or SaleType.Standart or SaleType.Pro);
         RuleFor(customer => customer.ActivityLevel)
             .NotNull().WithMessage("Укажите еженедельную активность")

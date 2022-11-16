@@ -87,13 +87,20 @@ public static class MatchHelper
 
     // --------------------------------------------------------------------------------
 
-    public static T2? Key<T1, T2>(this Dictionary<T1, T2> dictionary, T1 key) => dictionary.TryGetValue(key, out var value) ? value : default(T2);
+    public static T2? Key<T1, T2>(this Dictionary<T1, T2> dictionary, T1 key)
+    {
+        if (key is not null)
+            return dictionary.TryGetValue(key, out var value) ? value : default(T2);
+        else
+            return default(T2);
+    }
 
     public static bool? AsBool(this int? value) => Archive_ValueToBool.Key(value);
     public static int? AsInt(this string? str) => int.TryParse(str, out int val) ? val : null;
     public static int? AsInt(this int? value) => Archive_ValueToInt.Key(value);
     public static float? AsFloat(this int? value) => Archive_ValueToFloat.Key(value);
     public static string? AsString(this int? value) => Archive_ValueToString.Key(value);
+    public static string? AsCode(this int? value) => Archive_ValueToCode.Key(value);
     public static int? AsValue(this string? form) => Archive_FormToValue.Key(form);
     public static string? AsErrorTitle(this SaleType type) => Archive_SaleTypeToErrorTitle.Key(type);
     public static string? AsReinputLink(this SaleType type) => Archive_SaleTypeToYandexFormForReinput.Key(type);
@@ -161,6 +168,21 @@ public static class MatchHelper
         [21] = "5",
     };
 
+    private static readonly Dictionary<int?, string?> Archive_ValueToCode = new()
+    {
+        [28] = "gender",
+        [29] = "age",
+        [30] = "height",
+        [31] = "weight",
+        [32] = "purpouse",
+        [33] = "daily_activity",
+        [34] = "activity_level",
+        [35] = "focus",
+        [36] = "trainer",
+        [37] = "diseases",
+        [38] = "videos"
+    };
+
     private static readonly Dictionary<string?, int?> Archive_FormToValue = new()
     {
         ["Похудение"] = 1,
@@ -212,6 +234,19 @@ public static class MatchHelper
         ["Почта"] = 25,
         ["Телефон"] = 26,
         ["Адрес"] = 27,
+
+        ["Пол"] = 28,
+        ["Возраст"] = 29,
+        ["Рост"] = 30,
+        ["Вес"] = 31,
+        ["Цель тренировок"] = 32,
+        ["Еженедельная активность"] = 33,
+        ["Уровень активности"] = 34,
+        ["Акцент группы мышц"] = 35,
+        ["Тренер"] = 36,
+        ["Заболевания"] = 37,
+
+        ["Выбранные видео"] = 38,
     };
 
     private static readonly Dictionary<SaleType?, string?> Archive_SaleTypeToErrorTitle = new()
