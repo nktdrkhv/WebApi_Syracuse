@@ -7,7 +7,7 @@ public static class NutritionHelper
 {
     public static Cpfc CalculateCpfc(Agenda data)
     {
-        float proteins = default, fats = default, cabs = default, calories = default;
+        float proteins = default, fats = default, cabs = default, calories = default, basalCal = default;
         float purpose = (float)data.Purpouse.AsFloat();
         float dailyActivity = (float)data.DailyActivity.AsFloat();
 
@@ -15,8 +15,9 @@ public static class NutritionHelper
         {
             case "Мужчина":
                 proteins = (float)(data!.Weight * 2f);
-                fats = (float)data.Weight;
-                calories = (float)(((10f * data.Weight) + (6.25f * data.Height) - (5f * data.Age) + 5f) * dailyActivity * purpose);
+                fats = (float)(data.Weight * 1f);
+                basalCal = (float)((10f * data.Weight + 6.25f * data.Height - 5f * data.Age + 5f) * dailyActivity);
+                calories = basalCal * purpose;
                 cabs = (calories - (proteins * 4f) - (fats * 9f)) / 4f;
                 break;
             case "Женщина":

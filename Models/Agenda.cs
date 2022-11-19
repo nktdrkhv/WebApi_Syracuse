@@ -71,7 +71,7 @@ public class AgendaValidator : AbstractValidator<Agenda>
         RuleFor(customer => customer.Gender)
             .NotNull().WithName("Пол")
             .Matches("Мужчина|Женщина").WithMessage("Укажите корректный пол")
-            .When(_ => SaleType is SaleType.Coach or SaleType.Standart or SaleType.Pro or SaleType.Begginer or SaleType.Profi);
+            .When(_ => SaleType is SaleType.Coach or SaleType.Standart or SaleType.Pro or SaleType.Beginner or SaleType.Profi);
         RuleFor(customer => customer.Age)
             .NotNull().WithName("Возраст")
             .InclusiveBetween(10, 99).WithMessage("Укажите корректный возраст")
@@ -86,13 +86,13 @@ public class AgendaValidator : AbstractValidator<Agenda>
             .When(_ => SaleType is SaleType.Coach or SaleType.Standart or SaleType.Pro);
         RuleFor(customer => customer.ActivityLevel)
             .NotNull().WithMessage("Укажите еженедельную активность")
-            .When(_ => SaleType is SaleType.Coach or SaleType.Begginer or SaleType.Profi);
+            .When(_ => SaleType is SaleType.Coach or SaleType.Beginner or SaleType.Profi);
         RuleFor(customer => customer.DailyActivity)
             .NotNull().WithMessage("Укажите уровень активности")
             .When(_ => SaleType is SaleType.Coach or SaleType.Standart or SaleType.Pro);
         RuleFor(customer => customer.Purpouse)
             .NotNull().WithMessage("Укажите цель тренировок")
-            .When(_ => SaleType is SaleType.Coach or SaleType.Standart or SaleType.Pro or SaleType.Begginer or SaleType.Profi);
+            .When(_ => SaleType is SaleType.Coach or SaleType.Standart or SaleType.Pro or SaleType.Beginner or SaleType.Profi);
         RuleFor(customer => customer.Focus)
             .NotNull().WithMessage("Укажите акцент группы мышц")
             .When(_ => SaleType is SaleType.Coach or SaleType.Profi);

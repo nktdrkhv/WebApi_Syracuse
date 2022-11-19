@@ -29,6 +29,8 @@ public class ApplicationContext : DbContext
                     .HasMany(s => s.Product).WithMany(p => p.PartOf);
         modelBuilder.Entity<Product>()
                     .HasIndex(s => s.Code).IsUnique();
+        modelBuilder.Entity<Product>()
+                    .HasMany(p => p.Parents).WithMany(p => p.Includes);
     }
 }
 
@@ -98,11 +100,19 @@ public class DbService : IDbService
         {
             try
             {
-                var sale = await Context.Sales.Include(s => s.Client).Include(s => s.Agenda).Where(s => s.Key == key).Select(s => s).SingleAsync();
+                var sale = await Context.Sales.Include(s => s.Client).Include(s => s.Agenda).Where(s => s.Key == key).SingleAsync();
+
+                if (client.Email != sale.Client.Email && Context.Clients.Where(c => c.Email == client.Email).SingleOrDefault() is Client existingClient)
+                {
+                    existingClient.UpdateWith(client);
+                    sale.Client = existingClient;
+                }
+                else
+                    sale.Client.UpdateWith(client);
+
+                sale.Agenda?.UpdateWith(agenda);
 
                 sale.Key = null;
-                sale.Client.UpdateWith(client);
-                sale.Agenda?.UpdateWith(agenda);
                 Context.Sales.Update(sale);
                 Context.SaveChanges();
                 _logger.LogInformation($"Db (update sale): sale [{sale.Id} – {sale.Type}] got correct data for {client.Name} ({client.Email})");
@@ -143,21 +153,24 @@ public class DbService : IDbService
                       select wp).FirstOrDefaultAsync();
     }
 
-    public async Task<WorkoutProgram?> FindWorkoutProgramAsync(Agenda agenda)
+    public Task<WorkoutProgram?> FindWorkoutProgramAsync(Agenda agenda)
     {
-        var wp = from prog in Context.WorkoutPrograms
-                 where agenda.Gender == prog.Gender &&
-                       agenda.ActivityLevel == prog.ActivityLevel &&
-                       agenda.Focus == prog.Focus &&
-                       agenda.Purpouse == prog.Purpouse
-                 select prog;
-        var wpWithDeseases = wp.Where(wp => wp.Diseases == agenda.Diseases);
-        if (wpWithDeseases.Count() == 0)
-            return await wp.Where(wp => wp.IgnoreDiseases == true).FirstOrDefaultAsync();
-        else
-            return await wpWithDeseases.FirstAsync();
-    }
+        var wps = from prog in Context.WorkoutPrograms
+                  where agenda.Gender == prog.Gender &&
+                        agenda.ActivityLevel == prog.ActivityLevel &&
+                        agenda.Focus == prog.Focus &&
+                        agenda.Purpouse == prog.Purpouse &&
+                        (agenda.Diseases == prog.Diseases || prog.IgnoreDiseases)
+                  select prog;
 
+        if (agenda.Diseases is string diseases &&
+            wps.Where(wp => wp.Diseases == diseases).FirstOrDefault() is WorkoutProgram wpD)
+            return Task.FromResult(wpD);
+        else if (wps.Where(wp => wp.IgnoreDiseases == true).FirstOrDefault() is WorkoutProgram wp)
+            return Task.FromResult(wp);
+        else
+            return Task.FromResult<WorkoutProgram?>(null);
+    }
 
     public async Task<Table> GetWorkoutProgramsAsync(string separator)
     {

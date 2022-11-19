@@ -1,0 +1,176 @@
+<!-- team -->
+<script>
+    function htmlentities(s) {
+        var div = document.createElement('div');
+        var text = document.createTextNode(s);
+        div.appendChild(text);
+        return div.innerHTML;
+    }
+
+    $().ready(function () {
+        var url = "https://core.korablev-team.ru/admin/team?token=f30677a6-0e15-4e64-87b0-2097a9fdd53a";
+        var blockID = "486060447";
+
+        fetch(url)
+            .then((resp) => resp.json())
+            .then(function (data) {
+                $('#rec' + blockID + " table").html("");
+
+                var part1 = "";
+                for (var i = 0; i < Object.keys(data.titles).length; i++) {
+                    part1 += htmlentities(data.titles[i]) + ';';
+                }
+                part1 = part1.slice(0, -1);
+
+
+                var part2 = "";
+                var empty = true;
+
+                for (var i = 0; i < Object.keys(data.data).length; i++) {
+                    empty = true;
+                    for (var j = 0; j < Object.keys(data.data[i]).length; j++) {
+                        if (data.data[i][j] !== null) {
+                            part2 += htmlentities(data.data[i][j]) + ';'
+                            empty = false;
+                        }
+                        else {
+                            part2 += htmlentities("--") + ';'
+                            empty = false;
+                        };
+
+                    }
+
+                    part2 = !empty ? part2.slice(0, -1) + "\n" : part2.slice(0, - Object.keys(data.data[i]).length);
+                }
+                part2 = part2.slice(0, -1);
+
+                $('#rec' + blockID + " table").html("");
+
+                $('#rec' + blockID + " .t431__data-part1").html(part1);
+                $('#rec' + blockID + " .t431__data-part2").html(part2);
+
+                t431_init(blockID);
+            })
+            .catch(function (error) {
+                console.log(error);
+            });
+    })
+</script>
+
+<!-- nonedone -->
+<script>
+    function htmlentities(s) {
+        var div = document.createElement('div');
+        var text = document.createTextNode(s);
+        div.appendChild(text);
+        return div.innerHTML;
+    }
+
+    $().ready(function () {
+        var url = "https://core.korablev-team.ru/admin/nondone?token=f30677a6-0e15-4e64-87b0-2097a9fdd53a";
+        var blockID = "486063991";
+
+        fetch(url)
+            .then((resp) => resp.json())
+            .then(function (data) {
+                $('#rec' + blockID + " table").html("");
+
+                var part1 = "";
+                for (var i = 0; i < Object.keys(data.titles).length; i++) {
+                    part1 += htmlentities(data.titles[i]) + ';';
+                }
+                part1 = part1.slice(0, -1);
+
+
+                var part2 = "";
+                var empty = true;
+
+                for (var i = 0; i < Object.keys(data.data).length; i++) {
+                    empty = true;
+                    for (var j = 0; j < Object.keys(data.data[i]).length; j++) {
+                        if (data.data[i][j] !== null) {
+                            part2 += htmlentities(data.data[i][j]) + ';'
+                            empty = false;
+                        }
+                        else {
+                            part2 += htmlentities("--") + ';'
+                            empty = false;
+                        };
+
+                    }
+
+                    part2 = !empty ? part2.slice(0, -1) + "\n" : part2.slice(0, - Object.keys(data.data[i]).length);
+                }
+                part2 = part2.slice(0, -1);
+
+                $('#rec' + blockID + " table").html("");
+
+                $('#rec' + blockID + " .t431__data-part1").html(part1);
+                $('#rec' + blockID + " .t431__data-part2").html(part2);
+
+                t431_init(blockID);
+            })
+            .catch(function (error) {
+                console.log(error);
+            });
+    })
+</script>
+
+<!-- wp -->
+<script>
+    function htmlentities(s) {
+        var div = document.createElement('div');
+        var text = document.createTextNode(s);
+        div.appendChild(text);
+        return div.innerHTML;
+    }
+
+    $().ready(function () {
+        var url = "https://core.korablev-team.ru/admin/wp?token=f30677a6-0e15-4e64-87b0-2097a9fdd53a";
+        var blockID = "486065895";
+
+        fetch(url)
+            .then((resp) => resp.json())
+            .then(function (data) {
+                $('#rec' + blockID + " table").html("");
+
+                var part1 = "";
+                for (var i = 0; i < Object.keys(data.titles).length; i++) {
+                    part1 += htmlentities(data.titles[i]) + ';';
+                }
+                part1 = part1.slice(0, -1);
+
+
+                var part2 = "";
+                var empty = true;
+
+                for (var i = 0; i < Object.keys(data.data).length; i++) {
+                    empty = true;
+                    for (var j = 0; j < Object.keys(data.data[i]).length; j++) {
+                        if (data.data[i][j] !== null) {
+                            part2 += htmlentities(data.data[i][j]) + ';'
+                            empty = false;
+                        }
+                        else {
+                            part2 += htmlentities("--") + ';'
+                            empty = false;
+                        };
+
+                    }
+
+                    part2 = !empty ? part2.slice(0, -1) + "\n" : part2.slice(0, - Object.keys(data.data[i]).length);
+                }
+                part2 = part2.slice(0, -1);
+
+                $('#rec' + blockID + " table").html("");
+
+                $('#rec' + blockID + " .t431__data-part1").html(part1);
+                $('#rec' + blockID + " .t431__data-part2").html(part2);
+
+                t431_init(blockID);
+            })
+            .catch(function (error) {
+                console.log(error);
+            });
+    })
+</script>

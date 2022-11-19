@@ -15,5 +15,5 @@ public static class ScheduleHelper
     // }
 
     //public static TimeSpan GetSchedule() => TimeSpan.FromHours(new Random().Next(12, 24));
-    public static TimeSpan GetSchedule() => TimeSpan.FromSeconds(new Random().Next(60, 120));
+    public static TimeSpan GetSchedule() => TimeSpan.FromSeconds(new Random().Next(70, 120));
 }

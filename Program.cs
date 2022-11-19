@@ -74,6 +74,28 @@ app.UseCors();
 
 // --------------------------------------------------------------------------------
 
+app.MapPost("/tildaForm", (HttpContext context, ICustomerService customerService) =>
+{
+    if (!string.Equals(context.Request.Form["token"], KeyHelper.ApiToken)) return Results.Unauthorized();
+    if (context.Request.Form["test"] == "test") return Results.Ok("test");
+
+    context.Response.OnCompleted(() =>
+    {
+        try
+        {
+            var data = context.Request.Form.ToDictionary(form => form.Key.ToLower(), form => form.Value.ToString());
+            return customerService.HandleTildaAsync(data);
+        }
+        catch (Exception e)
+        {
+            app.Logger.LogError(e, "Error while handling Tilda");
+            return Task.CompletedTask;
+        }
+    });
+
+    return Results.Ok();
+});
+
 app.MapPost("/tilda", (HttpContext context, TildaOrder json, ICustomerService customerService, IDbService db) =>
 {
     if (!string.Equals(json.Token, KeyHelper.ApiToken)) return Results.Unauthorized();

@@ -8,6 +8,7 @@ public class Product
     [Unique] public string Code { get; set; }
     public List<Sale>? PartOf { get; set; }
     public List<Product>? Includes { get; set; }
+    public List<Product>? Parents { get; set; }
 
     [Unique] public string Label { get; set; }
     public int Price { get; set; }

@@ -10,7 +10,7 @@ public static class MatchHelper
         Dictionary<string?, string?> valueDic = null;
         switch (type)
         {
-            case SaleType.Begginer:
+            case SaleType.Beginner:
                 valueDic = new()
                 {
                     ["key"] = sale.Key,
@@ -74,10 +74,10 @@ public static class MatchHelper
                 valueDic = new()
                 {
                     ["key"] = sale.Key,
-                    ["gender"] = sale.Agenda.Gender?.AsValue().ToString(),
-                    ["activity_level"] = sale.Agenda.ActivityLevel.ToString(),
-                    ["focus"] = sale.Agenda.Focus.ToString(),
-                    ["purpouse"] = sale.Agenda.Purpouse.ToString(),
+                    ["gender"] = sale.Agenda.Gender?.AsValue()?.ToString(),
+                    ["activity_level"] = sale.Agenda.ActivityLevel?.ToString(),
+                    ["focus"] = sale.Agenda.Focus?.ToString(),
+                    ["purpouse"] = sale.Agenda.Purpouse?.ToString(),
                     ["diseases"] = sale.Agenda.Diseases,
                 };
                 break;
@@ -95,6 +95,7 @@ public static class MatchHelper
             return default(T2);
     }
 
+    public static string? AsNonEmpty(this string value) => string.IsNullOrWhiteSpace(value) ? null : value;
     public static bool? AsBool(this int? value) => Archive_ValueToBool.Key(value);
     public static int? AsInt(this string? str) => int.TryParse(str, out int val) ? val : null;
     public static int? AsInt(this int? value) => Archive_ValueToInt.Key(value);
@@ -254,7 +255,7 @@ public static class MatchHelper
         [SaleType.Coach] = "Ошибка: запись к Online-тренеру",
         [SaleType.Standart] = "Ошибка: Standart питание. КБЖУ + рацион",
         [SaleType.Pro] = "Ошибка: PRO питание + книга рецептов",
-        [SaleType.Begginer] = "Ошибка: программа тренировок для новичков",
+        [SaleType.Beginner] = "Ошибка: программа тренировок для новичков",
         [SaleType.Profi] = "Ошибка: программа тренировок для профессионалов",
         [SaleType.Posing] = "Ошибка: уроки позинга Fitness Bikini",
         [SaleType.Endo] = "Ошибка: запись на консультацию к эндокринологу",
@@ -265,7 +266,7 @@ public static class MatchHelper
         [SaleType.Coach] = "https://forms.yandex.ru/cloud/62ffa34019f03a8bfd90ecb3",
         [SaleType.Standart] = "https://forms.yandex.ru/cloud/6311d17d18a45f9fb782979e",
         [SaleType.Pro] = "https://forms.yandex.ru/cloud/631364b43e0fc29063e3d915",
-        [SaleType.Begginer] = "https://forms.yandex.ru/cloud/6311e6b78738c957e3f1d164",
+        [SaleType.Beginner] = "https://forms.yandex.ru/cloud/6311e6b78738c957e3f1d164",
         [SaleType.Profi] = "https://forms.yandex.ru/cloud/62ffe07d0170aca2958f5c0c",
         [SaleType.WorkoutProgram] = "https://korablev-team.ru/load/wp",
     };
