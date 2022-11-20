@@ -39,15 +39,15 @@ public class CustomerService : ICustomerService
 
     static CustomerService()
     {
-        RecurringJob.AddOrUpdate<IServiceProvider>(sp => Check(sp), Cron.Minutely);
+        RecurringJob.AddOrUpdate(() => Check(), Cron.Minutely);
     }
 
-    public static async Task Check(IServiceProvider provider)
+    public static async Task Check()
     {
-        using var scope = provider.CreateScope();
-        await using var mail = scope.ServiceProvider.GetService<IMailService>();
-        await using var db = scope.ServiceProvider.GetService<IDbService>();
-        var logger = provider.GetService<ILogger<CustomerService>>();
+        await using var scope = ServiceActivator.GetAsyncScope();
+        var mail = scope?.ServiceProvider.GetService<IMailService>();
+        var db = scope?.ServiceProvider.GetService<IDbService>();
+        var logger = scope?.ServiceProvider.GetService<ILogger<CustomerService>>();
     }
 
     public async Task HandleTildaAsync(Dictionary<string, string> data)
@@ -157,9 +157,9 @@ public class CustomerService : ICustomerService
 
     private static async Task ForwardMail(IServiceProvider provider, MailService.MailContent content, Sale sale)
     {
-        using var scope = provider.CreateScope();
-        await using var mail = scope.ServiceProvider.GetService<IMailService>();
-        await using var db = scope.ServiceProvider.GetService<IDbService>();
+        await using var scope = provider.CreateAsyncScope();
+        var mail = scope.ServiceProvider.GetService<IMailService>();
+        var db = scope.ServiceProvider.GetService<IDbService>();
         var logger = provider.GetService<ILogger<CustomerService>>();
 
         await mail.SendMailAsync(content);
@@ -609,7 +609,7 @@ public class CustomerService : ICustomerService
 
     private Task AddOrUpdateContent(Dictionary<string, string> data)
     {
-        if (_db.Context.Products.Include(p => p.Includes).Include(p => p.Parents).Where(p => p.Code == data.Key("code")).SingleOrDefault() is Product productToEdit && productToEdit.Includes is null)
+        if (_db.Context.Products.Include(p => p.Includes).Include(p => p.Parents).Where(p => p.Code == data.Key("code")).SingleOrDefault() is Product productToEdit && productToEdit.Includes?.Count is 0)
         {
             productToEdit.Content = data.Key("content")?.Trim();
             if (data.Key("child-of") is string childOf)
