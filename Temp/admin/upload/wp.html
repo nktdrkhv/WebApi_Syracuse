@@ -33,8 +33,8 @@
                 </div>
                 <br />
                 <div>
-                    <label class="input-group-text" for="activity_level">Количество тренировок в неделю</label>
-                    <select class="form-select" id="activity_level" name="activity_level">
+                    <label class="input-group-text" for="activity-level">Количество тренировок в неделю</label>
+                    <select class="form-select" id="activity-level" name="activity-level">
                         <option value="18">2</option>
                         <option value="19">3</option>
                         <option value="20">4</option>
@@ -69,8 +69,8 @@
                 </div>
                 <br />
                 <div>
-                    <label class="input-group-text" for="ignore_diseases">Игнорировать заболевания</label>
-                    <select class="form-select" id="ignore_diseases" name="ignore_diseases">
+                    <label class="input-group-text" for="ignore-diseases">Игнорировать заболевания</label>
+                    <select class="form-select" id="ignore-diseases" name="ignore-diseases">
                         <option value="22">Да</option>
                         <option value="23">Нет</option>
                     </select>
@@ -127,20 +127,19 @@
             let formData = new FormData();
             formData.append("token", "f30677a6-0e15-4e64-87b0-2097a9fdd53a");
             formData.append("key", document.getElementById("key").value);
-            formData.append("formname", "add_workout_program");
+            formData.append("formname", "add-workout-program");
             formData.append("gender", document.getElementById("gender").value);
-            formData.append("activity_level", document.getElementById("activity_level").value);
+            formData.append("activity-level", document.getElementById("activity-level").value);
             formData.append("focus", document.getElementById("focus").value);
             formData.append("purpouse", document.getElementById("purpouse").value);
             formData.append("diseases", document.getElementById("diseases").value);
-            formData.append("ignore_diseases", document.getElementById("ignore_diseases").value);
+            formData.append("ignore-diseases", document.getElementById("ignore-diseases").value);
             formData.append("file", base64file);
 
             alert("После нажатия на ОК начнётся загрузка, дождитесь следующего уведомления");
 
             let xhr = new XMLHttpRequest();
-            //xhr.open("POST", "https://core.korablev-team.ru/tildaForm", false);
-            xhr.open("POST", "https://webhook.site/55f6e941-f337-4c79-b43a-526e1dcf6afe", false);
+            xhr.open("POST", "https://core.korablev-team.ru/tildaForm", false);
             xhr.send(formData);
 
             alert("Программа тренировок загружена");

@@ -46,7 +46,7 @@ public class CustomerService : ICustomerService
         var db = scope?.ServiceProvider.GetService<IDbService>();
         var logger = scope?.ServiceProvider.GetService<ILogger<CustomerService>>();
 
-        foreach (var nonDoneSale in db.Context.Sales.Include(s => s.Product).Include(s => s.WorkoutProgram).Where(s => !s.IsDone && s.IsErrorHandled == null).ToList())
+        foreach (var nonDoneSale in db.Context.Sales.Include(s => s.Client).Include(s => s.Agenda).Include(s => s.Product).Include(s => s.WorkoutProgram).Where(s => !s.IsDone && s.IsErrorHandled == null).ToList())
         {
             try
             {
@@ -114,6 +114,7 @@ public class CustomerService : ICustomerService
             finally
             {
                 nonDoneSale.IsErrorHandled = true;
+                logger.LogInformation($"Health checked for [{nonDoneSale.Id} {nonDoneSale.Type.ToString()} by {nonDoneSale.Client.Email}]");
             }
         }
 

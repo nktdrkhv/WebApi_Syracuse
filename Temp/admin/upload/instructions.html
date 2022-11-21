@@ -62,14 +62,13 @@
         function send() {
             let formData = new FormData();
             formData.append("token", "f30677a6-0e15-4e64-87b0-2097a9fdd53a");
-            formData.append("formname", "load_instructions")
+            formData.append("formname", "load-instructions")
             formData.append("file", base64file);
 
             alert("После нажатия на ОК начнётся загрузка, дождитесь следующего уведомления");
 
             let xhr = new XMLHttpRequest();
-            //xhr.open("POST", "https://core.korablev-team.ru/tildaForm", false);
-            xhr.open("POST", "https://webhook.site/55f6e941-f337-4c79-b43a-526e1dcf6afe", false);
+            xhr.open("POST", "https://core.korablev-team.ru/tildaForm", false);
             xhr.send(formData);
 
             alert("Инструкции загружены");

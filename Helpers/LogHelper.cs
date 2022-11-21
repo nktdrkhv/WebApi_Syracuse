@@ -16,14 +16,14 @@ public static class LogHelper
         }
         return sb.ToString();
     }
-    public static string ToColumn(this List<Product>? source, string separator)
+    public static string AsString(this List<Product>? source, string separator, bool isLabel = false)
     {
         if (source is null)
             return "—";
         var sb = new StringBuilder();
-        foreach (var parent in source)
+        foreach (var element in source)
         {
-            sb.Append(parent.Code);
+            sb.Append(isLabel ? element.Label : element.Code);
             sb.Append(separator);
         }
         return sb.ToString();

@@ -6,6 +6,7 @@ using FluentValidation;
 using Hangfire;
 using Hangfire.Storage.SQLite;
 using Microsoft.EntityFrameworkCore;
+using CsvHelper;
 
 CultureInfo.CurrentCulture = new CultureInfo("ru-RU");
 
@@ -207,6 +208,42 @@ app.MapGet("/admin/{table}", async (string table, string? token, IDbService db) 
     };
 
     return Results.Json(await handler);
+});
+
+app.MapGet("/completed-sales-csv", (string? token, IDbService db) =>
+{
+    if (token != KeyHelper.ApiToken) throw new ArgumentNullException("Api key for Completed-sales-csv is not specified");
+
+    var completedSales =
+        db.Context.Sales.Include(s => s.Client).Include(s => s.Product)
+        .Where(s => s.IsDone)
+        .Select(s => new CompletedSale()
+        {
+            SaleId = s.Id,
+            OrderId = s.OrderId,
+            DateOfPurchase = $"{s.PurchaseTime.ToShortDateString()} {s.PurchaseTime.ToShortTimeString()}",
+            Email = s.Client.Email,
+            Phone = s.Client.Phone,
+            Name = s.Client.Name,
+            Products = s.Product.AsString("; ", true),
+        })
+        .ToList();
+
+    var tempFilePath = Path.GetTempFileName();
+    using var writer = new StreamWriter(tempFilePath);
+    using var csv = new CsvWriter(writer, CultureInfo.InvariantCulture);
+    {
+        csv.WriteHeader<CompletedSale>();
+        csv.NextRecord();
+        foreach (var completedSale in completedSales)
+        {
+            csv.WriteRecord(completedSale);
+            csv.NextRecord();
+        }
+    }
+
+    var utcNow = DateTime.UtcNow;
+    Results.File(tempFilePath, "text/csv", $"KorablevTeamArchive_{utcNow.Day}-{utcNow.Month}-{utcNow.Year}.csv");
 });
 
 app.MapGet("/price/{product}", (string product) =>

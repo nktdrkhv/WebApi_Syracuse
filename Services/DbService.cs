@@ -224,7 +224,7 @@ public class DbService : IDbService
     public async Task<Table> GetProductsAsync(string separator)
     {
         var products = from p in Context.Products.Include(p => p.Parents)
-                       select new List<string>() { p.Code, p.Label, p.Price.ToString(), p.Content.ToColumn(separator), p.Parents.ToColumn(separator) };
+                       select new List<string>() { p.Code, p.Label, p.Price.ToString(), p.Content.ToColumn(separator), p.Parents.AsString(separator, false) };
         var table = new Table();
         table.Titles = new() { "Код", "Название", "Цена, ₽", "Контент", "Включен в" };
         table.Data = await products.ToListAsync();
