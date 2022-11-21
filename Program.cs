@@ -202,6 +202,7 @@ app.MapGet("/admin/{table}", async (string table, string? token, IDbService db) 
         "nondone" => db.GetNonDoneSalesAsync("<br/>"),
         "team" => db.GetTeamAsync("<br/>"),
         "wp" => db.GetWorkoutProgramsAsync("<br/>"),
+        "products" => db.GetProductsAsync("<br/>"),
         _ => Task.FromResult(new Table()),
     };
 
@@ -237,6 +238,8 @@ if (app.Environment.IsDevelopment())
         app.Logger.LogInformation("Env: MAIL_FROM_NAME = {}", Environment.GetEnvironmentVariable("MAIL_FROM_NAME"));
         app.Logger.LogInformation("Env: MAIL_FROM_ADDR = {}", Environment.GetEnvironmentVariable("MAIL_FROM_ADDR"));
     });
+
+    app.MapGet("/trigger-health-check", () => RecurringJob.TriggerJob("health-check"));
 }
 // --------------------------------------------------------------------------------
 
@@ -248,8 +251,8 @@ app.Run();
 
 int GetPrice(ApplicationContext context, string productCode)
 {
-    var item = context.Products.Include(p => p.Includes).Where(p => p.Code == productCode).SingleOrDefault();
-    if (item.Price == 0 && item.Includes is List<Product> goods)
+    var item = context.Products.Include(p => p.Childs).Where(p => p.Code == productCode).SingleOrDefault();
+    if (item.Price == 0 && item.Childs is List<Product> goods)
     {
         int price = 0;
         foreach (var elem in goods)

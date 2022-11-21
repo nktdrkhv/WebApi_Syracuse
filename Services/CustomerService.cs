@@ -37,17 +37,97 @@ public class CustomerService : ICustomerService
         _db = db;
     }
 
-    static CustomerService()
-    {
-        RecurringJob.AddOrUpdate(() => Check(), Cron.Minutely);
-    }
+    static CustomerService() => RecurringJob.AddOrUpdate("health-check", () => HealthCheck(), Cron.Hourly);
 
-    public static async Task Check()
+    public static async Task HealthCheck()
     {
         await using var scope = ServiceActivator.GetAsyncScope();
         var mail = scope?.ServiceProvider.GetService<IMailService>();
         var db = scope?.ServiceProvider.GetService<IDbService>();
         var logger = scope?.ServiceProvider.GetService<ILogger<CustomerService>>();
+
+        foreach (var nonDoneSale in db.Context.Sales.Include(s => s.Product).Include(s => s.WorkoutProgram).Where(s => !s.IsDone && s.IsErrorHandled == null).ToList())
+        {
+            try
+            {
+                if (nonDoneSale.OrderId == default)
+                    throw new CustomerExсeption("Некорректная обработка продажи: отсутсвует внешний номер заказа");
+
+                if (nonDoneSale.Product?.Count is 0)
+                    throw new CustomerExсeption("Некорректная обработка продажи: отсутствуют связанные продукты");
+
+                if (!nonDoneSale.IsSuccessEmailSent)
+                {
+                    await ForwardSuccessEmailAsync(nonDoneSale, mail, db, logger);
+                    nonDoneSale.IsSuccessEmailSent = true;
+                }
+
+                if (nonDoneSale.Type is SaleType.Beginner or SaleType.Profi && nonDoneSale.WorkoutProgram is null &&
+                    string.IsNullOrWhiteSpace(nonDoneSale.Key) && nonDoneSale.IsAdminNotified)
+                    nonDoneSale.IsAdminNotified = false;
+
+                if (nonDoneSale.Type is SaleType.Standart or SaleType.Pro && string.IsNullOrWhiteSpace(nonDoneSale.Nutrition))
+                    AttachNutrition(nonDoneSale, db, scope?.ServiceProvider.GetService<PdfService>(), logger);
+
+                if (string.IsNullOrWhiteSpace(nonDoneSale.Key)
+                    && (nonDoneSale.ScheduledDeliverTime is null || (nonDoneSale.ScheduledDeliverTime is DateTime scheduled && scheduled < DateTime.UtcNow.AddMinutes(5d)))
+                    && (nonDoneSale.Type is SaleType.Beginner or SaleType.Profi && nonDoneSale.WorkoutProgram is not null ||
+                    nonDoneSale.Type is SaleType.Standart or SaleType.Pro && !string.IsNullOrWhiteSpace(nonDoneSale.Nutrition)))
+                {
+                    var content = nonDoneSale.Type switch
+                    {
+                        SaleType.Beginner or SaleType.Pro => CreateMailContentForWp(nonDoneSale),
+                        SaleType.Standart or SaleType.Pro => CreateMailContentForNutrition(nonDoneSale),
+                        _ => throw new ArgumentException(),
+                    };
+                    var delay = ScheduleHelper.GetSchedule();
+                    BackgroundJob.Schedule(() => ForwardMail(content, nonDoneSale), delay);
+                    nonDoneSale.ScheduledDeliverTime = DateTime.UtcNow + delay;
+                }
+
+                if (!nonDoneSale.IsAdminNotified)
+                {
+                    await NotifyAdminsAsync(nonDoneSale, mail, db, logger);
+                    nonDoneSale.IsAdminNotified = true;
+                }
+            }
+            catch (CustomerExсeption ex)
+            {
+                logger.LogError(ex, "Health check was not passed");
+                await ErrorNotify(nonDoneSale, ex.Message);
+            }
+            catch (MailExсeption ex)
+            {
+                logger.LogError(ex, "Health check was not passed");
+                await ErrorNotify(nonDoneSale, ex.Message);
+            }
+            catch (DbExсeption ex)
+            {
+                logger.LogError(ex, "Health check was not passed");
+                await ErrorNotify(nonDoneSale, ex.Message);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Health check was not passed");
+                await ErrorNotify(nonDoneSale, "ошибка не указана");
+            }
+            finally
+            {
+                nonDoneSale.IsErrorHandled = true;
+            }
+        }
+
+        async Task ErrorNotify(Sale sale, string exMessage)
+        {
+            var gettersInfo = MatchHelper.TransformToValues(sale);
+            gettersInfo["key"] = KeyHelper.UniversalKey;
+            var link = UrlHelper.MakeLink(sale.Type, gettersInfo);
+            logger.LogInformation($"Admin (health check of [{sale.Type}]): ReInput link for [{sale.Client.Email}] is [{link}]");
+
+            var message = ($"Внимание! Произошла ошибка: <i>{exMessage}</i><br/><br/>{LogHelper.ClientInfo(sale.Client, sale.Agenda)}<br/><br/>Пожалуйста, перезаполните данные клиента по этой ссылке: {link}");
+            foreach (var admin in await db.GetInnerEmailsAsync(admins: true))
+                await mail.SendMailAsync(MailType.Failure, admin, "Обратите внимание: некорректная обработка продажи", message);
+        }
     }
 
     public async Task HandleTildaAsync(Dictionary<string, string> data)
@@ -155,36 +235,43 @@ public class CustomerService : ICustomerService
 
     // -----------------------
 
-    private static async Task ForwardMail(IServiceProvider provider, MailService.MailContent content, Sale sale)
+    private static async Task ForwardMail(MailService.MailContent content, Sale sale)
     {
-        await using var scope = provider.CreateAsyncScope();
-        var mail = scope.ServiceProvider.GetService<IMailService>();
-        var db = scope.ServiceProvider.GetService<IDbService>();
-        var logger = provider.GetService<ILogger<CustomerService>>();
+        await using var scope = ServiceActivator.GetAsyncScope();
+        var mail = scope?.ServiceProvider.GetService<IMailService>();
+        var db = scope?.ServiceProvider.GetService<IDbService>();
+        var logger = scope?.ServiceProvider.GetService<ILogger<CustomerService>>();
 
-        await mail.SendMailAsync(content);
-        await db.СompleteAsync(sale.Id);
-        logger.LogInformation($"Mail({sale.Type.ToString()}): Mail was sent to client [{sale.Client.Email}] with sale ID [{sale.Id}]");
+        try
+        {
+            await mail.SendMailAsync(content);
+            await db.СompleteAsync(sale.Id);
+            logger.LogInformation($"Mail({sale.Type.ToString()}): Mail was sent to client [{sale.Client.Email}] with sale ID [{sale.Id}]");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, $"Can't send delayd mail to [{sale.Client.Email}] with sale ID [{sale.Id}]. Hope for the best");
+        }
     }
 
     // -----------------------
 
-    private async Task AttachWpAndForwardAsync()
+    private static async Task AttachAndForwardWpAsync(IDbService db, IMailService mail)
     {
-        var awaitingCustomers = _db.Context.Sales
+        var awaitingCustomers = db.Context.Sales
             .Include(s => s.Client).Include(s => s.Agenda).Include(s => s.WorkoutProgram)
             .Where(s => (s.Type == SaleType.Beginner || s.Type == SaleType.Profi) && !s.IsDone)
             .ToList();
 
         foreach (var sale in awaitingCustomers)
-            if (sale.WorkoutProgram is null && await _db.FindWorkoutProgramAsync(sale.Agenda) is WorkoutProgram wp)
+            if (sale.WorkoutProgram is null && await db.FindWorkoutProgramAsync(sale.Agenda) is WorkoutProgram wp)
             {
                 sale.WorkoutProgram = wp;
-                _db.Context.Sales.Update(sale);
-                var content = CreateContentForWp(sale);
+                db.Context.Sales.Update(sale);
+                var content = CreateMailContentForWp(sale);
 
-                await _mail.SendMailAsync(content);
-                await _db.СompleteAsync(sale.Id);
+                await mail.SendMailAsync(content);
+                await db.СompleteAsync(sale.Id);
             }
     }
 
@@ -225,7 +312,7 @@ public class CustomerService : ICustomerService
             case SaleType.Posing:
                 var sb = new StringBuilder();
                 foreach (var video in sale.Product ?? Enumerable.Empty<Product>())
-                    if (video.Includes is List<Product> children && children.Count != 0)
+                    if (video.Childs is List<Product> children && children.Count != 0)
                     {
                         sb.Append($"<b>{video.Label}</b><br/><br/>");
                         foreach (var child in children) sb.Append(VideoList(child));
@@ -261,6 +348,7 @@ public class CustomerService : ICustomerService
             case SaleType.Profi:
                 if (sale.WorkoutProgram is null)
                 {
+                    sale.Key = KeyHelper.NewKey();
                     logger.LogInformation($"Client (wp): wp for {sale.Client.Email} doesnt exit");
                     var gettersInfo = MatchHelper.TransformToValues(sale, SaleType.WorkoutProgram);
                     var link = UrlHelper.MakeLink(SaleType.WorkoutProgram.AsReinputLink(), gettersInfo);
@@ -339,14 +427,11 @@ public class CustomerService : ICustomerService
 
         await ForwardSuccessEmailAsync(sale, _mail, _db, _logger);
         sale.IsSuccessEmailSent = true;
-        _db.Context.Sales.Update(sale);
 
         await NotifyAdminsAsync(sale, _mail, _db, _logger);
         sale.IsAdminNotified = true;
-        _db.Context.Sales.Update(sale);
 
         sale.IsDone = true;
-        _db.Context.Sales.Update(sale);
     }
 
     private async Task HandleEndoFormAsync(Dictionary<string, string> data)
@@ -359,14 +444,11 @@ public class CustomerService : ICustomerService
 
         await ForwardSuccessEmailAsync(sale, _mail, _db, _logger);
         sale.IsSuccessEmailSent = true;
-        _db.Context.Sales.Update(sale);
 
         await NotifyAdminsAsync(sale, _mail, _db, _logger);
         sale.IsAdminNotified = true;
-        _db.Context.Sales.Update(sale);
 
         sale.IsDone = true;
-        _db.Context.Sales.Update(sale);
     }
 
     private async Task HandleCoachFormAsync(Dictionary<string, string> data)
@@ -386,14 +468,11 @@ public class CustomerService : ICustomerService
 
         await ForwardSuccessEmailAsync(sale, _mail, _db, _logger);
         sale.IsSuccessEmailSent = true;
-        _db.Context.Sales.Update(sale);
 
         await NotifyAdminsAsync(sale, _mail, _db, _logger);
         sale.IsAdminNotified = true;
-        _db.Context.Sales.Update(sale);
 
         sale.IsDone = true;
-        _db.Context.Sales.Update(sale);
     }
 
     #endregion
@@ -416,26 +495,24 @@ public class CustomerService : ICustomerService
 
         await ForwardSuccessEmailAsync(sale, _mail, _db, _logger);
         sale.IsSuccessEmailSent = true;
-        _db.Context.Sales.Update(sale);
 
         if (await _db.FindWorkoutProgramAsync(sale.Agenda) is WorkoutProgram wp)
         {
             sale.WorkoutProgram = wp;
-            _db.Context.Sales.Update(sale);
-            var content = CreateContentForWp(sale);
+
+            var content = CreateMailContentForWp(sale);
             var delay = ScheduleHelper.GetSchedule();
+            BackgroundJob.Schedule(() => ForwardMail(content, sale), delay);
             sale.ScheduledDeliverTime = DateTime.UtcNow + delay;
-            _db.Context.Sales.Update(sale);
-            BackgroundJob.Schedule<IServiceProvider>(sp => ForwardMail(sp, content, sale), delay);
+
             _logger.LogInformation($"Client (wp): wp for {sale.Client.Email} is exit. It's {sale.WorkoutProgram.Id} : {sale.WorkoutProgram.ProgramPath}");
         }
 
         await NotifyAdminsAsync(sale, _mail, _db, _logger);
         sale.IsAdminNotified = true;
-        _db.Context.Sales.Update(sale);
     }
 
-    private static MailService.MailContent CreateContentForWp(Sale sale)
+    private static MailService.MailContent CreateMailContentForWp(Sale sale)
     {
         var subject = sale.Type is SaleType.Beginner ? "Begginer: готовая программа" : "Profi: готовая программа";
         var message = "Ваша персональная программа тренировок готова! Она прикреплена к данному сообщению.";
@@ -459,31 +536,35 @@ public class CustomerService : ICustomerService
         sale.OrderId = int.Parse(data["orderid"]);
         sale.Product = new() { _db.Context.Products.Where(p => p.Code == saleType.ToString().ToLower()).Single() };
 
-        var cpfc = NutritionHelper.CalculateCpfc(agenda);
-        var diet = NutritionHelper.CalculateDiet(cpfc);
-        var path = Path.Combine("Resources", "Produced", "Nutritions", NewName());
-        _pdf.CreateNutrition(path, agenda, cpfc, diet);
-
-        sale.Nutrition = path;
-        _db.Context.Sales.Update(sale);
-        _logger.LogInformation($"Client (nutrition): nutrition {Name(path)} for {client.Email} calculated");
+        if (string.IsNullOrWhiteSpace(sale.Nutrition))
+            AttachNutrition(sale, _db, _pdf, _logger);
 
         await ForwardSuccessEmailAsync(sale, _mail, _db, _logger);
         sale.IsSuccessEmailSent = true;
-        _db.Context.Sales.Update(sale);
 
+
+        var content = CreateMailContentForNutrition(sale);
         var delay = ScheduleHelper.GetSchedule();
+        BackgroundJob.Schedule(() => ForwardMail(content, sale), delay);
         sale.ScheduledDeliverTime = DateTime.UtcNow + delay;
-        _db.Context.Sales.Update(sale);
-        var content = CreateContentForNutrition(sale);
-        BackgroundJob.Schedule<IServiceProvider>(sp => ForwardMail(sp, content, sale), delay);
 
         await NotifyAdminsAsync(sale, _mail, _db, _logger);
         sale.IsAdminNotified = true;
-        _db.Context.Sales.Update(sale);
     }
 
-    private static MailService.MailContent CreateContentForNutrition(Sale sale)
+    private static void AttachNutrition(Sale sale, IDbService db, IPdfService pdf, ILogger<CustomerService> logger)
+    {
+        var cpfc = NutritionHelper.CalculateCpfc(sale.Agenda);
+        var diet = NutritionHelper.CalculateDiet(cpfc);
+        var path = Path.Combine("Resources", "Produced", "Nutritions", NewName());
+        pdf.CreateNutrition(path, sale.Agenda, cpfc, diet);
+
+        sale.Nutrition = path;
+        db.Context.Sales.Update(sale);
+        logger.LogInformation($"Client (nutrition): nutrition {Name(path)} for {sale.Client.Email} calculated");
+    }
+
+    private static MailService.MailContent CreateMailContentForNutrition(Sale sale)
     {
         var nutrition = new MailService.FilePath("КБЖУ и рацион.pdf", sale.Nutrition);
         var recepies = new MailService.FilePath("Книга рецептов.pdf", Path.Combine("Resources", "Produced", "Recepies.pdf"));
@@ -510,7 +591,7 @@ public class CustomerService : ICustomerService
     {
         string? key = data.Key("key");
         if (string.Equals(key, KeyHelper.UniversalKey)) return;
-        Sale sale;
+        Sale sale = null;
 
         if (string.IsNullOrWhiteSpace(key))
         {
@@ -565,7 +646,7 @@ public class CustomerService : ICustomerService
         await _db.AddWorkoutProgramAsync(workoutProgram);
         _logger.LogInformation($"Admin (add wp): wp ({Name(workoutProgram.ProgramPath)}) is loaded and added to db");
 
-        await AttachWpAndForwardAsync();
+        await AttachAndForwardWpAsync(_db, _mail);
     }
 
     // --------------------------------------------------------------------------------
@@ -609,27 +690,23 @@ public class CustomerService : ICustomerService
 
     private Task AddOrUpdateContent(Dictionary<string, string> data)
     {
-        if (_db.Context.Products.Include(p => p.Includes).Include(p => p.Parents).Where(p => p.Code == data.Key("code")).SingleOrDefault() is Product productToEdit && productToEdit.Includes?.Count is 0)
+        if (_db.Context.Products.Include(p => p.Childs).Include(p => p.Parents).Where(p => p.Code == data.Key("code")).SingleOrDefault() is Product productToEdit && productToEdit.Childs?.Count is 0)
         {
             productToEdit.Content = data.Key("content")?.Trim();
             if (data.Key("child-of") is string childOf)
             {
                 var parentCode = childOf[1..];
-                var parent = _db.Context.Products.Include(p => p.Includes).Where(p => p.Code == parentCode).Single();
-                if (productToEdit.Parents is null) productToEdit.Parents = new();
-                if (parent.Includes is null) parent.Includes = new();
+                var parent = _db.Context.Products.Include(p => p.Childs).Where(p => p.Code == parentCode).Single();
 
                 if (childOf.StartsWith('+'))
                 {
-                    productToEdit.Parents.Add(parent);
-                    parent.Includes.Add(productToEdit);
+                    productToEdit.Parents?.Add(parent);
+                    parent.Childs?.Add(productToEdit);
                 }
                 else if (childOf.StartsWith('-'))
                 {
-                    productToEdit.Parents.Remove(parent);
-                    parent.Includes.Remove(productToEdit);
-                    if (parent.Includes?.Count is 0)
-                        parent.Includes = null;
+                    productToEdit.Parents?.Remove(parent);
+                    parent.Childs?.Remove(productToEdit);
                 }
 
                 _db.Context.Products.Update(parent);

@@ -30,7 +30,7 @@ public class ApplicationContext : DbContext
         modelBuilder.Entity<Product>()
                     .HasIndex(s => s.Code).IsUnique();
         modelBuilder.Entity<Product>()
-                    .HasMany(p => p.Parents).WithMany(p => p.Includes);
+                    .HasMany(p => p.Parents).WithMany(p => p.Childs);
     }
 }
 
@@ -45,9 +45,10 @@ public interface IDbService : IAsyncDisposable
     Task<WorkoutProgram?> FindWorkoutProgramAsync(WorkoutProgram workoutProgram);
     Task<WorkoutProgram?> FindWorkoutProgramAsync(Agenda agenda);
 
-    Task<Table> GetNonDoneSalesAsync(string separator);
+    Task<Table> GetNonDoneSalesAsync(string separator, double additionalHours = 7.0);
     Task<Table> GetWorkoutProgramsAsync(string separator);
     Task<Table> GetTeamAsync(string separator);
+    Task<Table> GetProductsAsync(string separator);
 
     Task<string> GetCoachContactsAsync(string coachNickname, string separator = "<br/>");
     Task<(string name, string email)[]> GetInnerEmailsAsync(string[] coachNicknames = null, bool admins = false);
@@ -72,6 +73,7 @@ public class DbService : IDbService
         {
             sale.IsDone = true;
             sale.Key = null;
+            sale.IsErrorHandled = null;
         }
     }
 
@@ -92,7 +94,6 @@ public class DbService : IDbService
 
             var sale = new Sale { Client = client, Agenda = agenda, Type = saleType, PurchaseTime = dateTime, IsDone = isDone, Key = key };
             Context.Sales.Add(sale);
-            Context.SaveChanges();
             _logger.LogInformation($"Db (new sale): sale [{sale.Id} – {sale.Type}] for {client.Name} ({client.Email})");
             return sale;
         }
@@ -112,9 +113,9 @@ public class DbService : IDbService
 
                 sale.Agenda?.UpdateWith(agenda);
 
+                sale.IsErrorHandled = null;
                 sale.Key = null;
                 Context.Sales.Update(sale);
-                Context.SaveChanges();
                 _logger.LogInformation($"Db (update sale): sale [{sale.Id} – {sale.Type}] got correct data for {client.Name} ({client.Email})");
                 return sale;
             }
@@ -140,6 +141,7 @@ public class DbService : IDbService
             _logger.LogInformation($"Db (add wp): wp is newby {workoutProgram.ProgramPath}");
         }
     }
+
 
     public async Task<WorkoutProgram?> FindWorkoutProgramAsync(WorkoutProgram workoutProgram)
     {
@@ -172,6 +174,7 @@ public class DbService : IDbService
             return Task.FromResult<WorkoutProgram?>(null);
     }
 
+
     public async Task<Table> GetWorkoutProgramsAsync(string separator)
     {
         var wps = from wp in Context.WorkoutPrograms
@@ -188,13 +191,22 @@ public class DbService : IDbService
         return table;
     }
 
-    public async Task<Table> GetNonDoneSalesAsync(string separator)
+    public async Task<Table> GetNonDoneSalesAsync(string separator, double additionalHours = 7.0)
     {
         var sales = from c in Context.Sales
                     where c.IsDone == false
-                    select new List<string>() { c.Id.ToString(), $"{c.Client.Name}{separator}{c.Client.Email}{separator}{c.Client.Phone}", c.Type.ToString(), c.PurchaseTime.ToString(), c.Key };
+                    let purchaseTime = c.PurchaseTime.AddHours(additionalHours)
+                    let scheduleTime = c.ScheduledDeliverTime.GetValueOrDefault().AddHours(additionalHours)
+                    select new List<string>()
+                    {
+                        c.Id.ToString(),
+                        $"{c.Client.Name}{separator}{c.Client.Email}{separator}{c.Client.Phone}",
+                        c.Type.ToString(),
+                        $"{purchaseTime.ToShortDateString()}{separator}{purchaseTime.ToShortTimeString()}",
+                        $"{scheduleTime.ToShortDateString()}{separator}{scheduleTime.ToShortTimeString()}"
+                    };
         var table = new Table();
-        table.Titles = new() { "ID", "Клиент", "Тип", "Дата", "Ключ" };
+        table.Titles = new() { "ID", "Клиент", "Тип", "Время покупки", "Время отправки" };
         table.Data = await sales.ToListAsync();
         return table;
     }
@@ -206,6 +218,16 @@ public class DbService : IDbService
         var table = new Table();
         table.Titles = new() { "Никнейм", "Имя", "Контакты", "Администратор?" };
         table.Data = await team.ToListAsync();
+        return table;
+    }
+
+    public async Task<Table> GetProductsAsync(string separator)
+    {
+        var products = from p in Context.Products.Include(p => p.Parents)
+                       select new List<string>() { p.Code, p.Label, p.Price.ToString(), p.Content.ToColumn(separator), p.Parents.ToColumn(separator) };
+        var table = new Table();
+        table.Titles = new() { "Код", "Название", "Цена, ₽", "Контент", "Включен в" };
+        table.Data = await products.ToListAsync();
         return table;
     }
 

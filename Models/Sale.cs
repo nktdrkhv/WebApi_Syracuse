@@ -17,8 +17,10 @@ public class Sale
     public int OrderId { get; set; }
     public string? Key { get; set; }
 
+    public bool IsSuccessEmailSent { get; set; }
+    public bool IsAdminNotified { get; set; }
+    public bool? IsErrorHandled { get; set; }
     public bool IsDone { get; set; }
-    [Column("ToCemail")] public bool IsSuccessEmailSent { get; set; }
-    [Column("ToAemail")] public bool IsAdminNotified { get; set; }
+
     public DateTime? ScheduledDeliverTime { get; set; }
 }

@@ -48,9 +48,9 @@ public class AgendaMapper : Profile
             .ForMember(dest => dest.Weight,
                 opt => opt.MapFrom(src => src.Key("weight").AsInt()))
             .ForMember(dest => dest.ActivityLevel,
-                opt => opt.MapFrom(src => src.Key("activity_level").AsValue()))
+                opt => opt.MapFrom(src => src.Key("activity-level").AsValue()))
             .ForMember(dest => dest.DailyActivity,
-                opt => opt.MapFrom(src => src.Key("daily_activity").AsValue()))
+                opt => opt.MapFrom(src => src.Key("daily-activity").AsValue()))
             .ForMember(dest => dest.Diseases,
                 opt => opt.MapFrom(src => src.Key("diseases").ToLower().Trim()))
             .ForMember(dest => dest.Purpouse,

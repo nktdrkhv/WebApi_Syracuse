@@ -4,6 +4,30 @@ namespace Syracuse;
 
 public static class LogHelper
 {
+    public static string ToColumn(this string? source, string separator)
+    {
+        if (string.IsNullOrWhiteSpace(source))
+            return "—";
+        var sb = new StringBuilder();
+        foreach (var part in source.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            sb.Append(part);
+            sb.Append(separator);
+        }
+        return sb.ToString();
+    }
+    public static string ToColumn(this List<Product>? source, string separator)
+    {
+        if (source is null)
+            return "—";
+        var sb = new StringBuilder();
+        foreach (var parent in source)
+        {
+            sb.Append(parent.Code);
+            sb.Append(separator);
+        }
+        return sb.ToString();
+    }
 
     public static string RawData(Dictionary<string, string> data)
     {
