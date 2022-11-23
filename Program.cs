@@ -230,8 +230,8 @@ app.MapGet("/completed-sales-csv", (string? token, IDbService db) =>
         .ToList();
 
     var tempFilePath = Path.GetTempFileName();
-    using var writer = new StreamWriter(tempFilePath);
-    using var csv = new CsvWriter(writer, CultureInfo.InvariantCulture);
+    using (var writer = new StreamWriter(tempFilePath))
+    using (var csv = new CsvWriter(writer, CultureInfo.GetCultureInfo("ru-RU")))
     {
         csv.WriteHeader<CompletedSale>();
         csv.NextRecord();
@@ -240,10 +240,11 @@ app.MapGet("/completed-sales-csv", (string? token, IDbService db) =>
             csv.WriteRecord(completedSale);
             csv.NextRecord();
         }
-    }
+    };
 
     var utcNow = DateTime.UtcNow;
-    Results.File(tempFilePath, "text/csv", $"KorablevTeamArchive_{utcNow.Day}-{utcNow.Month}-{utcNow.Year}.csv");
+    app.Logger.LogInformation("Completed sales in cvs is responsed");
+    return Results.File(tempFilePath, "text/csv", $"KorablevTeamArchive_{utcNow.Day}-{utcNow.Month}-{utcNow.Year}.csv");
 });
 
 app.MapGet("/price/{product}", (string product) =>
@@ -262,6 +263,13 @@ app.MapGet("/label/{product}", (string product) =>
     return Results.Ok(label);
 });
 
+app.MapGet("/trigger-health-check", (string? token) =>
+{
+    if (token != KeyHelper.ApiToken) Results.Unauthorized();
+    RecurringJob.TriggerJob("health-check");
+    Results.Ok();
+});
+
 // --------------------------------------------------------------------------------
 if (app.Environment.IsDevelopment())
 {
@@ -276,7 +284,7 @@ if (app.Environment.IsDevelopment())
         app.Logger.LogInformation("Env: MAIL_FROM_ADDR = {}", Environment.GetEnvironmentVariable("MAIL_FROM_ADDR"));
     });
 
-    app.MapGet("/trigger-health-check", () => RecurringJob.TriggerJob("health-check"));
+
 }
 // --------------------------------------------------------------------------------
 
@@ -288,7 +296,9 @@ app.Run();
 
 int GetPrice(ApplicationContext context, string productCode)
 {
-    var item = context.Products.Include(p => p.Childs).Where(p => p.Code == productCode).SingleOrDefault();
+    var item = context.Products.Include(p => p.Childs).Where(p => p.Code == productCode).FirstOrDefault();
+    if (item is null)
+        return -1;
     if (item.Price == 0 && item.Childs is List<Product> goods)
     {
         int price = 0;

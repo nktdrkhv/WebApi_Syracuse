@@ -18,7 +18,7 @@
                 "MAIL_PASS": "2vqA5XwWAPTNiTvR81wH",
                 "MAIL_FROM_NAME": "KorablevTeam",
                 "MAIL_FROM_ADDR": "noreply@korablev-team.ru",
-                "MAIL_FAKE": "yes",
+                "MAIL_FAKE": "no",
                 "MIN_MINUTES": "1",
                 "MAX_MINUTES": "2"
             },

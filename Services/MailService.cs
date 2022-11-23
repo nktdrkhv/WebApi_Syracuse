@@ -11,7 +11,6 @@ public interface IMailService : IAsyncDisposable
     Task SendMailAsync(MailService.MailContent content);
     Task SendMailAsync(MailType type, string addresseeEmail, string addresseeName, string subject, string message, params MailService.FilePath[] filePaths);
     Task SendMailAsync(MailType type, (string email, string name)[] addressee, string subject, string message, params (string name, string path)[] filePaths);
-    Task SendMailAsync(MailType type, (string email, string name) addressee, string subject, string message, params (string name, string path)[] filePaths);
     //Task LoadAttachmentAsync(string key, string path);
 }
 
@@ -56,8 +55,8 @@ public class MailService : IMailService
 
         try
         {
-
-            _smtpClient = new SmtpClient();
+            var logger = new ProtocolLogger(Path.Combine("Resources", "Logs", "smtp.log"));
+            _smtpClient = new SmtpClient(logger);
             await _smtpClient.ConnectAsync(s_smtpHost, s_smtpPort, true);
             await _smtpClient.AuthenticateAsync(s_user, s_password);
             _isInit = true;
@@ -72,8 +71,6 @@ public class MailService : IMailService
     public async Task SendMailAsync(MailService.MailContent content) => await SendMailAsync(content.type, content.email, content.name, content.subject, content.message, content.files);
 
     public async Task SendMailAsync(MailType type, string addresseeEmail, string addresseeName, string subject, string message, params MailService.FilePath[] filePaths) => await SendMailAsync(type, new[] { (addresseeEmail, addresseeName) }, subject, message, filePaths.Select(fp => (fp.name, fp.path)).ToArray());
-
-    public async Task SendMailAsync(MailType type, (string email, string name) addressee, string subject, string message, params (string name, string path)[] filePaths) => await SendMailAsync(type, new[] { addressee }, subject, message, filePaths);
 
     public async Task SendMailAsync(MailType type, (string email, string name)[] addressee, string subject, string message, params (string name, string path)[] filePaths)
     {
@@ -129,7 +126,10 @@ public class MailService : IMailService
                     continue;
                 }
                 else
+                {
                     await _smtpClient.SendAsync(emailMessage);
+                    _logger.LogInformation($"Mail (sent) to {emailMessage.To.First().Name}");
+                }
             };
         }
         catch (Exception ex)

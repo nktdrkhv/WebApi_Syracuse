@@ -51,7 +51,7 @@ public interface IDbService : IAsyncDisposable
     Task<Table> GetProductsAsync(string separator);
 
     Task<string> GetCoachContactsAsync(string coachNickname, string separator = "<br/>");
-    Task<(string name, string email)[]> GetInnerEmailsAsync(string[] coachNicknames = null, bool admins = false);
+    Task<(string email, string name)[]> GetInnerEmailsAsync(string[] coachNicknames = null, bool admins = false);
 }
 
 public class DbService : IDbService
@@ -94,6 +94,7 @@ public class DbService : IDbService
 
             var sale = new Sale { Client = client, Agenda = agenda, Type = saleType, PurchaseTime = dateTime, IsDone = isDone, Key = key };
             Context.Sales.Add(sale);
+            Context.SaveChanges();
             _logger.LogInformation($"Db (new sale): sale [{sale.Id} – {sale.Type}] for {client.Name} ({client.Email})");
             return sale;
         }
@@ -157,23 +158,26 @@ public class DbService : IDbService
 
     public Task<WorkoutProgram?> FindWorkoutProgramAsync(Agenda agenda)
     {
-        var wps = from prog in Context.WorkoutPrograms
-                  where agenda.Gender == prog.Gender &&
-                        agenda.ActivityLevel == prog.ActivityLevel &&
-                        agenda.Focus == prog.Focus &&
-                        agenda.Purpouse == prog.Purpouse &&
-                        (agenda.Diseases == prog.Diseases || prog.IgnoreDiseases)
-                  select prog;
+        var wps = (from prog in Context.WorkoutPrograms
+                   where agenda.Gender == prog.Gender &&
+                         agenda.ActivityLevel == prog.ActivityLevel &&
+                         agenda.Focus == prog.Focus &&
+                         agenda.Purpouse == prog.Purpouse &&
+                         (agenda.Diseases == prog.Diseases || prog.IgnoreDiseases)
+                   select prog).ToList();
 
-        if (agenda.Diseases is string diseases &&
-            wps.Where(wp => wp.Diseases == diseases).FirstOrDefault() is WorkoutProgram wpD)
-            return Task.FromResult(wpD);
-        else if (wps.Where(wp => wp.IgnoreDiseases == true).FirstOrDefault() is WorkoutProgram wp)
-            return Task.FromResult(wp);
+        _logger.LogInformation($"Db (find wp): For [{agenda.Gender} {agenda.ActivityLevel.AsString()} {agenda.Purpouse.AsString()} {agenda.Focus.AsString() ?? "no focus"} {agenda.Diseases ?? "no diseases"}] found total [{wps.Count}]");
+
+        if (agenda.Diseases is string diseases)
+            if (wps.Where(wp => wp.Diseases == diseases).FirstOrDefault() is WorkoutProgram wpDpos)
+                return Task.FromResult<WorkoutProgram?>(wpDpos);
+            else if (wps.Where(wp => wp.IgnoreDiseases).FirstOrDefault() is WorkoutProgram wpDneg)
+                return Task.FromResult<WorkoutProgram?>(wpDneg);
+            else
+                return Task.FromResult<WorkoutProgram?>(null);
         else
-            return Task.FromResult<WorkoutProgram?>(null);
+            return Task.FromResult<WorkoutProgram?>(wps.FirstOrDefault());
     }
-
 
     public async Task<Table> GetWorkoutProgramsAsync(string separator)
     {
@@ -194,7 +198,7 @@ public class DbService : IDbService
     public async Task<Table> GetNonDoneSalesAsync(string separator, double additionalHours = 7.0)
     {
         var sales = from c in Context.Sales
-                    where c.IsDone == false
+                    where !c.IsDone
                     let purchaseTime = c.PurchaseTime.AddHours(additionalHours)
                     let scheduleTime = c.ScheduledDeliverTime.GetValueOrDefault().AddHours(additionalHours)
                     select new List<string>()
@@ -258,7 +262,7 @@ public class DbService : IDbService
         }
     }
 
-    public async Task<(string name, string email)[]> GetInnerEmailsAsync(string[] coachNicknames = null, bool admins = false)
+    public async Task<(string email, string name)[]> GetInnerEmailsAsync(string[] coachNicknames = null, bool admins = false)
     {
         try
         {
@@ -267,7 +271,7 @@ public class DbService : IDbService
                          where contact.Type == ContactType.Email &&
                                 (coachNicknames != null && coachNicknames.Contains(worker.Nickname) ||
                                 worker.Admin && admins)
-                         select ValueTuple.Create(worker.Name, contact.Info);
+                         select ValueTuple.Create(contact.Info, worker.Name);
             return await emails.ToArrayAsync();
         }
         catch

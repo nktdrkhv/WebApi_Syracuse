@@ -51,7 +51,10 @@ public class CustomerService : ICustomerService
             try
             {
                 if (nonDoneSale.OrderId == default)
-                    throw new CustomerExсeption("Некорректная обработка продажи: отсутсвует внешний номер заказа");
+                {
+                    nonDoneSale.OrderId = -1;
+                    throw new CustomerExсeption("Некорректная обработка продажи: отсутсвует внешний номер заказа, проверьте факт оплаты в банке");
+                }
 
                 if (nonDoneSale.Product?.Count is 0)
                     throw new CustomerExсeption("Некорректная обработка продажи: отсутствуют связанные продукты");
@@ -71,8 +74,8 @@ public class CustomerService : ICustomerService
 
                 if (string.IsNullOrWhiteSpace(nonDoneSale.Key)
                     && (nonDoneSale.ScheduledDeliverTime is null || (nonDoneSale.ScheduledDeliverTime is DateTime scheduled && scheduled < DateTime.UtcNow.AddMinutes(5d)))
-                    && (nonDoneSale.Type is SaleType.Beginner or SaleType.Profi && nonDoneSale.WorkoutProgram is not null ||
-                    nonDoneSale.Type is SaleType.Standart or SaleType.Pro && !string.IsNullOrWhiteSpace(nonDoneSale.Nutrition)))
+                    && (nonDoneSale.Type is SaleType.Beginner or SaleType.Profi && nonDoneSale.WorkoutProgram is not null
+                    || nonDoneSale.Type is SaleType.Standart or SaleType.Pro && !string.IsNullOrWhiteSpace(nonDoneSale.Nutrition)))
                 {
                     var content = nonDoneSale.Type switch
                     {
@@ -93,23 +96,28 @@ public class CustomerService : ICustomerService
             }
             catch (CustomerExсeption ex)
             {
-                logger.LogError(ex, "Health check was not passed");
+                logger.LogError(ex, "Health check was not passed because of Customer Ex");
                 await ErrorNotify(nonDoneSale, ex.Message);
             }
             catch (MailExсeption ex)
             {
-                logger.LogError(ex, "Health check was not passed");
+                logger.LogError(ex, "Health check was not passed because of Mail Ex");
                 await ErrorNotify(nonDoneSale, ex.Message);
             }
             catch (DbExсeption ex)
             {
-                logger.LogError(ex, "Health check was not passed");
+                logger.LogError(ex, "Health check was not passed because of Db Ex");
                 await ErrorNotify(nonDoneSale, ex.Message);
+            }
+            catch (BackgroundJobClientException ex)
+            {
+                logger.LogError(ex, "Health check was not passed because of Schedule Ex");
+                await ErrorNotify(nonDoneSale, "Ошибка при попытке запланировать отложенную отправку сообщения клиенту");
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Health check was not passed");
-                await ErrorNotify(nonDoneSale, "ошибка не указана");
+                await ErrorNotify(nonDoneSale, "Ошибка не указана");
             }
             finally
             {
@@ -125,9 +133,8 @@ public class CustomerService : ICustomerService
             var link = UrlHelper.MakeLink(sale.Type, gettersInfo);
             logger.LogInformation($"Admin (health check of [{sale.Type}]): ReInput link for [{sale.Client.Email}] is [{link}]");
 
-            var message = ($"Внимание! Произошла ошибка: <i>{exMessage}</i><br/><br/>{LogHelper.ClientInfo(sale.Client, sale.Agenda)}<br/><br/>Пожалуйста, перезаполните данные клиента по этой ссылке: {link}");
-            foreach (var admin in await db.GetInnerEmailsAsync(admins: true))
-                await mail.SendMailAsync(MailType.Failure, admin, "Обратите внимание: некорректная обработка продажи", message);
+            var message = ($"Внимание! Произошла ошибка:<br/><i>{exMessage}</i><br/><br/>{LogHelper.ClientInfo(sale.Client, sale.Agenda).Replace("\n", "<br/>")}<br/>Пожалуйста, перезаполните данные клиента по этой ссылке: {link}");
+            await mail.SendMailAsync(MailType.Failure, await db.GetInnerEmailsAsync(admins: true), "Обратите внимание: некорректная обработка продажи", message);
         }
     }
 
@@ -145,6 +152,7 @@ public class CustomerService : ICustomerService
             "endo" => HandleEndoFormAsync(data),
 
             "add-worker" => AddWorker(data),
+            "edit-worker" => EditWorker(data),
             "delete-worker" => DeleteWorker(data),
             "add-contact" => AddContact(data),
             "delete-contact" => DeleteContact(data),
@@ -172,7 +180,7 @@ public class CustomerService : ICustomerService
         {
             "begginer" => HandleBegginerFormAsync(data),
             "profi" => HandleProfiFormAsync(data),
-            "coach" => HandleCoachFormAsync(data),
+            "online-coach" => HandleCoachFormAsync(data),
             "standart" => HandleStandartFormAsync(data),
             "pro" => HandleProFormAsync(data),
 
@@ -236,7 +244,7 @@ public class CustomerService : ICustomerService
 
     // -----------------------
 
-    private static async Task ForwardMail(MailService.MailContent content, Sale sale)
+    public static async Task ForwardMail(MailService.MailContent content, Sale sale)
     {
         await using var scope = ServiceActivator.GetAsyncScope();
         var mail = scope?.ServiceProvider.GetService<IMailService>();
@@ -257,7 +265,7 @@ public class CustomerService : ICustomerService
 
     // -----------------------
 
-    private static async Task AttachAndForwardWpAsync(IDbService db, IMailService mail)
+    public static async Task AttachAndForwardWpAsync(IDbService db, IMailService mail, ILogger<CustomerService> logger)
     {
         var awaitingCustomers = db.Context.Sales
             .Include(s => s.Client).Include(s => s.Agenda).Include(s => s.WorkoutProgram)
@@ -269,14 +277,15 @@ public class CustomerService : ICustomerService
             {
                 sale.WorkoutProgram = wp;
                 db.Context.Sales.Update(sale);
-                var content = CreateMailContentForWp(sale);
+                logger.LogInformation($"AttachAndForwardWp: wp [{wp.Id}] for {sale.Client.Email} found and attached");
 
+                var content = CreateMailContentForWp(sale);
                 await mail.SendMailAsync(content);
                 await db.СompleteAsync(sale.Id);
             }
     }
 
-    private static async Task ForwardSuccessEmailAsync(Sale sale, IMailService mail, IDbService db, ILogger<CustomerService> logger)
+    public static async Task ForwardSuccessEmailAsync(Sale sale, IMailService mail, IDbService db, ILogger<CustomerService> logger)
     {
         switch (sale.Type)
         {
@@ -340,7 +349,7 @@ public class CustomerService : ICustomerService
         }
     }
 
-    private static async Task NotifyAdminsAsync(Sale sale, IMailService mail, IDbService db, ILogger<CustomerService> logger)
+    public static async Task NotifyAdminsAsync(Sale sale, IMailService mail, IDbService db, ILogger<CustomerService> logger)
     {
 
         switch (sale.Type)
@@ -358,45 +367,36 @@ public class CustomerService : ICustomerService
                     var clientInfo = LogHelper.ClientInfo(sale.Client, sale.Agenda);
                     clientInfo = clientInfo.Replace("\n", "<br/>");
                     var emails = await db.GetInnerEmailsAsync(admins: true);
-                    var messageWp = $"Необходимо составить новую программу тренировок для:<br/>{clientInfo}<br/>Перейдите для этого по ссылке: <i>{link}</i>";
-
-                    foreach (var admin in emails)
-                        await mail.SendMailAsync(MailType.Inner, admin, "Запрос на новую программу тренировок", messageWp);
+                    var messageWp = $"Необходимо составить новую программу тренировок для:<br/><br/>{clientInfo}<br/>Перейдите для этого по ссылке: <i>{link}</i>";
+                    await mail.SendMailAsync(MailType.Inner, emails, "Запрос на новую программу тренировок", messageWp);
                 }
                 else
                 {
-                    var messageWp = $"Покупка готовой программы тренировок {sale.Type.ToString()}. Клиент:<br/>{LogHelper.ClientInfo(sale.Client).Replace("\n", "<br/>")}";
-
-                    foreach (var admin in await db.GetInnerEmailsAsync(admins: true))
-                        await mail.SendMailAsync(MailType.Inner, admin, "Покупка готовой программы тренировок", messageWp);
+                    var messageWp = $"Покупка готовой программы тренировок {sale.Type.ToString()}.<br/><br/>{LogHelper.ClientInfo(sale.Client).Replace("\n", "<br/>")}";
+                    await mail.SendMailAsync(MailType.Inner, await db.GetInnerEmailsAsync(admins: true), "Покупка готовой программы тренировок", messageWp);
                     logger.LogInformation($"Mail ({sale.Type.ToString()}): info about {sale.Client.Email} is sent to admins");
                 }
                 break;
             case SaleType.Standart:
             case SaleType.Pro:
-                var messageNut = $"Покупка сгенерированной программы питания {sale.Type.ToString()}. Клиент:<br/>{LogHelper.ClientInfo(sale.Client).Replace("\n", "<br/>")}";
-
-                foreach (var admin in await db.GetInnerEmailsAsync(admins: true))
-                    await mail.SendMailAsync(MailType.Inner, admin, "Покупка программы питания", messageNut);
+                var messageNut = $"Покупка сгенерированной программы питания {sale.Type.ToString()}.<br/><br/>{LogHelper.ClientInfo(sale.Client).Replace("\n", "<br/>")}";
+                await mail.SendMailAsync(MailType.Inner, await db.GetInnerEmailsAsync(admins: true), "Покупка программы питания", messageNut);
                 logger.LogInformation($"Mail ({sale.Type.ToString()}): info about {sale.Client.Email} is sent to admins");
                 break;
             case SaleType.Coach:
-                var messageCoach = "Новый клиент на онлайн-тренировки:<br/>" +
+                var messageCoach = "Новый клиент на онлайн-тренировки:<br/><br/>" +
                             LogHelper.ClientInfo(sale.Client, sale.Agenda).Replace("\n", "<br/>") + "<br/>Пожалуйста, свяжитесь с ним/ней";
-                foreach (var worker in await db.GetInnerEmailsAsync(coachNicknames: new[] { sale.Agenda.Trainer }, admins: true))
-                    await mail.SendMailAsync(MailType.Inner, worker, "Занятия с Online-тренером: новый клиент", messageCoach);
+                await mail.SendMailAsync(MailType.Inner, await db.GetInnerEmailsAsync(coachNicknames: new[] { sale.Agenda.Trainer }, admins: true), "Занятия с Online-тренером: новый клиент", messageCoach);
                 logger.LogInformation($"Mail (coach): info about {sale.Client.Email} is sent to admins");
                 break;
             case SaleType.Endo:
-                var messageEndo = $"Новый клиент на консультацию эндокринолога: <br/>{LogHelper.ClientInfo(sale.Client).Replace("\n", "<br/>")}<br/>Пожалуйста, свяжитесь с ним/ней";
-                foreach (var admin in await db.GetInnerEmailsAsync(admins: true))
-                    await mail.SendMailAsync(MailType.Inner, admin, "Консультация эндокринолога: новый клиент", messageEndo);
+                var messageEndo = $"Новый клиент на консультацию эндокринолога:<br/><br/>{LogHelper.ClientInfo(sale.Client).Replace("\n", "<br/>")}<br/>Пожалуйста, свяжитесь с ним/ней";
+                await mail.SendMailAsync(MailType.Inner, await db.GetInnerEmailsAsync(admins: true), "Консультация эндокринолога: новый клиент", messageEndo);
                 logger.LogInformation($"Mail (endo): info about {sale.Client.Email} is sent to admins");
                 break;
             case SaleType.Posing:
-                var messagePosing = $"Покупка видео-уроков: <br/>{LogHelper.ClientInfo(sale.Client).Replace("\n", "<br/>")}";
-                foreach (var admin in await db.GetInnerEmailsAsync(admins: true))
-                    await mail.SendMailAsync(MailType.Inner, admin, "Покупка видео-уроков", messagePosing);
+                var messagePosing = $"Покупка видео-уроков:<br/><br/>{LogHelper.ClientInfo(sale.Client).Replace("\n", "<br/>")}";
+                await mail.SendMailAsync(MailType.Inner, await db.GetInnerEmailsAsync(admins: true), "Покупка видео-уроков", messagePosing);
                 logger.LogInformation($"Mail (endo): info about {sale.Client.Email} is sent to admins");
                 break;
             default:
@@ -421,7 +421,7 @@ public class CustomerService : ICustomerService
         Map(SaleType.Endo, data, out var client, out _);
 
         var sale = await _db.AddSaleAsync(client, null, SaleType.Posing, DateTime.UtcNow, false);
-        sale.OrderId = int.Parse(data["orderid"]);
+        sale.OrderId = sale.OrderId == -1 ? sale.OrderId : int.Parse(data["orderid"]);
         sale.Product = new();
         foreach (var productLabel in data["videos"].Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             sale.Product.Add(_db.Context.Products.Where(p => p.Label == productLabel).Select(p => p).Single());
@@ -440,7 +440,7 @@ public class CustomerService : ICustomerService
         Map(SaleType.Endo, data, out var client, out _);
 
         var sale = await _db.AddSaleAsync(client, null, SaleType.Endo, DateTime.UtcNow, false);
-        sale.OrderId = int.Parse(data["orderid"]);
+        sale.OrderId = sale.OrderId == -1 ? sale.OrderId : int.Parse(data["orderid"]);
         sale.Product = new() { _db.Context.Products.Where(p => p.Code == "endo").Single() };
 
         await ForwardSuccessEmailAsync(sale, _mail, _db, _logger);
@@ -464,7 +464,7 @@ public class CustomerService : ICustomerService
             dateTime: DateTime.UtcNow,
             isDone: false,
             isNewKey: false, key: key);
-        sale.OrderId = int.Parse(data["orderid"]);
+        sale.OrderId = sale.OrderId == -1 ? sale.OrderId : int.Parse(data["orderid"]);
         sale.Product = new() { _db.Context.Products.Where(p => p.Code == agenda.Trainer!).Single() };
 
         await ForwardSuccessEmailAsync(sale, _mail, _db, _logger);
@@ -491,7 +491,7 @@ public class CustomerService : ICustomerService
             dateTime: DateTime.UtcNow,
             isDone: false,
             isNewKey: false, key: key);
-        sale.OrderId = int.Parse(data["orderid"]);
+        sale.OrderId = sale.OrderId == -1 ? sale.OrderId : int.Parse(data["orderid"]);
         sale.Product = new() { _db.Context.Products.Where(p => p.Code == saleType.ToString().ToLower()).Single() };
 
         await ForwardSuccessEmailAsync(sale, _mail, _db, _logger);
@@ -513,7 +513,7 @@ public class CustomerService : ICustomerService
         sale.IsAdminNotified = true;
     }
 
-    private static MailService.MailContent CreateMailContentForWp(Sale sale)
+    public static MailService.MailContent CreateMailContentForWp(Sale sale)
     {
         var subject = sale.Type is SaleType.Beginner ? "Begginer: готовая программа" : "Profi: готовая программа";
         var message = "Ваша персональная программа тренировок готова! Она прикреплена к данному сообщению.";
@@ -522,7 +522,7 @@ public class CustomerService : ICustomerService
         return content;
     }
 
-    private async Task HandleNutritionAsync(Dictionary<string, string> data, SaleType saleType)
+    public async Task HandleNutritionAsync(Dictionary<string, string> data, SaleType saleType)
     {
         Map(saleType, data, out var client, out var agenda);
         if (!await Validate(saleType, data, client, agenda))
@@ -534,7 +534,7 @@ public class CustomerService : ICustomerService
             dateTime: DateTime.UtcNow,
             isDone: false,
             isNewKey: false, key: key);
-        sale.OrderId = int.Parse(data["orderid"]);
+        sale.OrderId = sale.OrderId == -1 ? sale.OrderId : int.Parse(data["orderid"]);
         sale.Product = new() { _db.Context.Products.Where(p => p.Code == saleType.ToString().ToLower()).Single() };
 
         if (string.IsNullOrWhiteSpace(sale.Nutrition))
@@ -542,7 +542,6 @@ public class CustomerService : ICustomerService
 
         await ForwardSuccessEmailAsync(sale, _mail, _db, _logger);
         sale.IsSuccessEmailSent = true;
-
 
         var content = CreateMailContentForNutrition(sale);
         var delay = ScheduleHelper.GetSchedule();
@@ -553,19 +552,19 @@ public class CustomerService : ICustomerService
         sale.IsAdminNotified = true;
     }
 
-    private static void AttachNutrition(Sale sale, IDbService db, IPdfService pdf, ILogger<CustomerService> logger)
+    public static void AttachNutrition(Sale sale, IDbService db, IPdfService pdf, ILogger<CustomerService> logger)
     {
         var cpfc = NutritionHelper.CalculateCpfc(sale.Agenda);
-        var diet = NutritionHelper.CalculateDiet(cpfc);
+        var diet = NutritionHelper.CalculateDiet(cpfc, sale.Agenda.Gender);
         var path = Path.Combine("Resources", "Produced", "Nutritions", NewName());
-        pdf.CreateNutrition(path, sale.Agenda, cpfc, diet);
+        pdf.CreateNutrition(path, sale.Type, sale.Agenda, cpfc, diet);
 
         sale.Nutrition = path;
         db.Context.Sales.Update(sale);
         logger.LogInformation($"Client (nutrition): nutrition {Name(path)} for {sale.Client.Email} calculated");
     }
 
-    private static MailService.MailContent CreateMailContentForNutrition(Sale sale)
+    public static MailService.MailContent CreateMailContentForNutrition(Sale sale)
     {
         var nutrition = new MailService.FilePath("КБЖУ и рацион.pdf", sale.Nutrition);
         var recepies = new MailService.FilePath("Книга рецептов.pdf", Path.Combine("Resources", "Produced", "Recepies.pdf"));
@@ -601,6 +600,8 @@ public class CustomerService : ICustomerService
                 dateTime: DateTime.UtcNow,
                 isDone: false,
                 isNewKey: true, key: key);
+            sale.OrderId = sale.OrderId == -1 ? sale.OrderId : int.Parse(data["orderid"]);
+            sale.IsErrorHandled = false;
             _logger.LogInformation($"Db (validation of [{saleType}]): [{client.Email}] with key [{key}] added data to db. Waiting new data.");
         }
         else
@@ -630,7 +631,7 @@ public class CustomerService : ICustomerService
         foreach (var error in ex.Errors)
             sb.AppendLine($"{error.ErrorMessage}<br/>");
         sb.AppendLine($"<br/>Пожалуйста, перейдите по ссылке и введите данные повторно!<br/><b>{link}</b>");
-        await _mail.SendMailAsync(MailType.Failure, (client.Email, client.Name), saleType.AsErrorTitle(), sb.ToString());
+        await _mail.SendMailAsync(MailType.Failure, client.Email, client.Name, saleType.AsErrorTitle(), sb.ToString());
         _logger.LogInformation($"Mail (validation of {saleType}): sent to {client.Email}");
     }
 
@@ -647,7 +648,7 @@ public class CustomerService : ICustomerService
         await _db.AddWorkoutProgramAsync(workoutProgram);
         _logger.LogInformation($"Admin (add wp): wp ({Name(workoutProgram.ProgramPath)}) is loaded and added to db");
 
-        await AttachAndForwardWpAsync(_db, _mail);
+        await AttachAndForwardWpAsync(_db, _mail, _logger);
     }
 
     // --------------------------------------------------------------------------------
@@ -691,10 +692,10 @@ public class CustomerService : ICustomerService
 
     private Task AddOrUpdateContent(Dictionary<string, string> data)
     {
-        if (_db.Context.Products.Include(p => p.Childs).Include(p => p.Parents).Where(p => p.Code == data.Key("code")).SingleOrDefault() is Product productToEdit && productToEdit.Childs?.Count is 0)
+        if (_db.Context.Products.Include(p => p.Childs).Include(p => p.Parents).Where(p => p.Code == data.Key("code")).SingleOrDefault() is Product productToEdit)
         {
             productToEdit.Content = data.Key("content")?.Trim();
-            if (data.Key("child-of") is string childOf)
+            if (productToEdit.Childs?.Count is 0 && data.Key("child-of") is string childOf)
             {
                 var parentCode = childOf[1..];
                 var parent = _db.Context.Products.Include(p => p.Childs).Where(p => p.Code == parentCode).Single();
@@ -734,6 +735,21 @@ public class CustomerService : ICustomerService
         {
             _logger.LogError(e, $"Admin (add woker): error. worker is not added");
         }
+        return Task.CompletedTask;
+    }
+
+    private Task EditWorker(Dictionary<string, string> data)
+    {
+        if (_db.Context.Workers.Where(w => w.Nickname == data.Key("nickname")).FirstOrDefault() is Worker workerToEdit)
+        {
+            var worker = _mapper.Map<Worker>(data);
+            workerToEdit.Admin = worker.Admin;
+            workerToEdit.Name = worker.Name;
+            _db.Context.Workers.Update(workerToEdit);
+            _logger.LogInformation($"Admin (edit worker): [{workerToEdit.Name}] is edited");
+        }
+        else
+            _logger.LogInformation($"Admin (edit worker): [{data.Key("nickname")}] is not exist");
         return Task.CompletedTask;
     }
 

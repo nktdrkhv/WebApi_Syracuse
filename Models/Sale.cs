@@ -14,7 +14,7 @@ public class Sale
     public WorkoutProgram? WorkoutProgram { get; set; }
     public string? Nutrition { get; set; }
 
-    public int OrderId { get; set; }
+    public int OrderId { get; set; } = -1;
     public string? Key { get; set; }
 
     public bool IsSuccessEmailSent { get; set; }

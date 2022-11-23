@@ -14,11 +14,12 @@ public static class MatchHelper
                 valueDic = new()
                 {
                     ["key"] = sale.Key,
+                    ["orderid"] = sale.OrderId.ToString(),
                     ["name"] = sale.Client.Name,
                     ["phone"] = sale.Client.Phone,
                     ["email"] = sale.Client.Email,
                     ["gender"] = sale.Agenda.Gender?.AsValue().ToString(),
-                    ["activity_level"] = sale.Agenda.ActivityLevel.ToString(),
+                    ["activity-level"] = sale.Agenda.ActivityLevel.ToString(),
                     ["purpouse"] = sale.Agenda.Purpouse.ToString(),
                 };
                 break;
@@ -26,11 +27,12 @@ public static class MatchHelper
                 valueDic = new()
                 {
                     ["key"] = sale.Key,
+                    ["orderid"] = sale.OrderId.ToString(),
                     ["name"] = sale.Client.Name,
                     ["phone"] = sale.Client.Phone,
                     ["email"] = sale.Client.Email,
                     ["gender"] = sale.Agenda.Gender?.AsValue().ToString(),
-                    ["activity_level"] = sale.Agenda.ActivityLevel.ToString(),
+                    ["activity-level"] = sale.Agenda.ActivityLevel.ToString(),
                     ["focus"] = sale.Agenda.Focus.ToString(),
                     ["purpouse"] = sale.Agenda.Purpouse.ToString(),
                     ["diseases"] = sale.Agenda.Diseases,
@@ -40,6 +42,7 @@ public static class MatchHelper
                 valueDic = new()
                 {
                     ["key"] = sale.Key,
+                    ["orderid"] = sale.OrderId.ToString(),
                     ["name"] = sale.Client.Name,
                     ["phone"] = sale.Client.Phone,
                     ["email"] = sale.Client.Email,
@@ -47,7 +50,7 @@ public static class MatchHelper
                     ["age"] = sale.Agenda.Age.ToString(),
                     ["height"] = sale.Agenda.Height.ToString(),
                     ["weight"] = sale.Agenda.Weight.ToString(),
-                    ["daily_activity"] = sale.Agenda.DailyActivity.ToString(),
+                    ["daily-activity"] = sale.Agenda.DailyActivity.ToString(),
                     ["purpouse"] = sale.Agenda.Purpouse.ToString(),
                 };
                 break;
@@ -55,6 +58,7 @@ public static class MatchHelper
                 valueDic = new()
                 {
                     ["key"] = sale.Key,
+                    ["orderid"] = sale.OrderId.ToString(),
                     ["name"] = sale.Client.Name,
                     ["phone"] = sale.Client.Phone,
                     ["email"] = sale.Client.Email,
@@ -62,8 +66,8 @@ public static class MatchHelper
                     ["age"] = sale.Agenda.Age.ToString(),
                     ["height"] = sale.Agenda.Height.ToString(),
                     ["weight"] = sale.Agenda.Weight.ToString(),
-                    ["daily_activity"] = sale.Agenda.DailyActivity.ToString(),
-                    ["activity_level"] = sale.Agenda.ActivityLevel.ToString(),
+                    ["daily-activity"] = sale.Agenda.DailyActivity.ToString(),
+                    ["activity-level"] = sale.Agenda.ActivityLevel.ToString(),
                     ["focus"] = sale.Agenda.Focus.ToString(),
                     ["purpouse"] = sale.Agenda.Purpouse.ToString(),
                     ["diseases"] = sale.Agenda.Diseases,
@@ -75,7 +79,7 @@ public static class MatchHelper
                 {
                     ["key"] = sale.Key,
                     ["gender"] = sale.Agenda.Gender?.AsValue()?.ToString(),
-                    ["activity_level"] = sale.Agenda.ActivityLevel?.ToString(),
+                    ["activity-level"] = sale.Agenda.ActivityLevel?.ToString(),
                     ["focus"] = sale.Agenda.Focus?.ToString(),
                     ["purpouse"] = sale.Agenda.Purpouse?.ToString(),
                     ["diseases"] = sale.Agenda.Diseases,
@@ -176,8 +180,8 @@ public static class MatchHelper
         [30] = "height",
         [31] = "weight",
         [32] = "purpouse",
-        [33] = "daily_activity",
-        [34] = "activity_level",
+        [33] = "daily-activity",
+        [34] = "activity-level",
         [35] = "focus",
         [36] = "trainer",
         [37] = "diseases",

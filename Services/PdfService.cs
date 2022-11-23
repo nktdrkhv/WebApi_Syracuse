@@ -7,7 +7,7 @@ namespace Syracuse;
 
 public interface IPdfService
 {
-    void CreateNutrition(string path, Agenda agenda, Cpfc cpfc, Diet diet);
+    void CreateNutrition(string path, SaleType type, Agenda agenda, Cpfc cpfc, Diet diet);
     //string CreateWorkoutProgram();
 }
 
@@ -17,7 +17,8 @@ public class PdfService : IPdfService
     private bool isInit = false;
 
     private static readonly string s_fontPath = Path.Combine("Resources", "Fonts", "AlumniSans-Regular.ttf");
-    private static readonly string s_nutritionTemplatePath = Path.Combine("Resources", "Templates", "nutrition-template.png");
+    private static readonly string s_standartNutritionTemplatePath = Path.Combine("Resources", "Templates", "nutrition-template-standart.png");
+    private static readonly string s_proNutritionTemplatePath = Path.Combine("Resources", "Templates", "nutrition-template-pro.png");
 
     private AddedFont _font;
     private byte[] _nutritionRawTemplate;
@@ -28,11 +29,16 @@ public class PdfService : IPdfService
 
     public PdfService(ILogger<PdfService> logger) => _logger = logger;
 
-    private void Init()
+    private void Init(SaleType type)
     {
         try
         {
-            _nutritionRawTemplate = File.ReadAllBytes(s_nutritionTemplatePath);
+            _nutritionRawTemplate = type switch
+            {
+                SaleType.Standart => File.ReadAllBytes(s_standartNutritionTemplatePath),
+                SaleType.Pro => File.ReadAllBytes(s_proNutritionTemplatePath),
+                _ => throw new PdfExсeption("Отстутсвует шаблон для указанного письма")
+            };
 
             var img = Image.Load(_nutritionRawTemplate);
             _nutritionWidth = img.Width;
@@ -52,9 +58,9 @@ public class PdfService : IPdfService
         isInit = true;
     }
 
-    public void CreateNutrition(string path, Agenda agenda, Cpfc cpfc, Diet diet)
+    public void CreateNutrition(string path, SaleType type, Agenda agenda, Cpfc cpfc, Diet diet)
     {
-        if (isInit == false) Init();
+        if (isInit == false) Init(type);
 
         try
         {
@@ -62,20 +68,21 @@ public class PdfService : IPdfService
             page.AddPng(_nutritionRawTemplate, page.PageSize);
             page.SetTextAndFillColor(255, 255, 255);
 
-            AddText(page, Label.CreateAge((int)agenda.Age, 120, 525));
-            AddText(page, Label.CreateHeight((int)agenda.Height, 285, 525));
-            AddText(page, Label.CreateWeight((int)agenda.Weight, 450, 525));
-            AddText(page, Label.CreateText(agenda.Purpouse.AsString(), 616, 525));
+            AddText(page, Label.CreateAge((int)agenda.Age, 239, 1045));
+            AddText(page, Label.CreateHeight((int)agenda.Height, 567, 1045));
+            AddText(page, Label.CreateWeight((int)agenda.Weight, 896, 1045));
+            AddText(page, Label.CreateText(agenda.Purpouse.AsString(), 1226, 1045));
 
-            AddText(page, Label.CreatePfc(cpfc.Proteins, 120, 740));
-            AddText(page, Label.CreatePfc(cpfc.Fats, 285, 740));
-            AddText(page, Label.CreatePfc(cpfc.Cabs, 450, 740));
-            AddText(page, Label.CreateText(cpfc.Calories.ToString(), 616, 740));
+            AddText(page, Label.CreatePfc(cpfc.Proteins, 239, 1473));
+            AddText(page, Label.CreatePfc(cpfc.Fats, 567, 1473));
+            AddText(page, Label.CreatePfc(cpfc.Cabs, 896, 1473));
+            AddText(page, Label.CreateText(cpfc.Calories.ToString(), 1226, 1473));
 
-            AddText(page, Label.CreateText($"Каша {diet.Breakfast[0]}гр. + любые белки {diet.Breakfast[1]}гр.", 1170, 520));
-            AddText(page, Label.CreateText($"Орехи {diet.Snack1[2]}гр. + шоколад {diet.Snack1[3]}гр.", 1170, 580));
-            AddText(page, Label.CreateText($"Каша {diet.Lunch[0]}гр. + любые белки {diet.Lunch[1]}гр.", 1170, 640));
-            AddText(page, Label.CreateText($"Любые белки {diet.Dinner[1]}гр.", 1170, 700));
+            AddText(page, Label.CreateText($"Каша {diet.Breakfast[0]}гр. + яйца {diet.Breakfast[4]}шт.", 2328, 1035));
+            AddText(page, Label.CreateText($"Орехи {diet.Snack1[2]}гр. + шоколад {diet.Snack1[3]}гр.", 2328, 1154));
+            AddText(page, Label.CreateText($"Каша {diet.Lunch[0]}гр. + белки {diet.Lunch[1]}гр.", 2328, 1274));
+            AddText(page, Label.CreateText($"Яйца {diet.Snack2[4]}шт.", 2328, 1393));
+            AddText(page, Label.CreateText($"Белки {diet.Dinner[1]}гр.", 2328, 1512));
 
             var bytes = _builder.Build();
             File.WriteAllBytes(path, bytes);
@@ -88,8 +95,8 @@ public class PdfService : IPdfService
     }
 
     private void AddText(PdfPageBuilder page, Label data) => page.AddText(data.Text,
-            35,
-            new PdfPoint(data.Position.x, 1080 - data.Position.y),
+            70,
+            new PdfPoint(data.Position.x, 2150 - data.Position.y),
             _font);
 
     public record Label

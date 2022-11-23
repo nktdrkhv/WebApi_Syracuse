@@ -21,6 +21,6 @@ public class WorkerMapper : Profile
             .ForMember(dest => dest.Nickname,
                 opt => opt.MapFrom(src => src.Key("nickname").ToLower()))
             .ForMember(dest => dest.Admin,
-                opt => opt.MapFrom(src => src.Key("is_admin").AsValue().AsBool()));
+                opt => opt.MapFrom(src => src.Key("is-admin").AsValue().AsBool()));
     }
 }

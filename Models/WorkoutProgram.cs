@@ -23,7 +23,7 @@ public class WorkoutProgramMapper : Profile
             .ForMember(dest => dest.Gender,
                 opt => opt.MapFrom(src => src.Key("gender").AsInt().AsString()))
             .ForMember(dest => dest.ActivityLevel,
-                opt => opt.MapFrom(src => src.Key("activity_level").AsInt()))
+                opt => opt.MapFrom(src => src.Key("activity-level").AsInt()))
             .ForMember(dest => dest.Diseases,
                 opt => opt.MapFrom(src => src.Key("diseases").ToLower().Trim().AsNonEmpty()))
             .ForMember(dest => dest.Purpouse,
@@ -31,6 +31,6 @@ public class WorkoutProgramMapper : Profile
             .ForMember(dest => dest.Focus,
                 opt => opt.MapFrom(src => src.Key("focus").AsInt()))
             .ForMember(dest => dest.IgnoreDiseases,
-                opt => opt.MapFrom(src => src.Key("ignore_diseases").AsInt().AsBool()));
+                opt => opt.MapFrom(src => src.Key("ignore-diseases").AsInt().AsBool()));
     }
 }
