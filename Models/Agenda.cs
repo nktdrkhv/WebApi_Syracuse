@@ -1,22 +1,21 @@
-﻿using System.Text.RegularExpressions;
+﻿using AutoMapper;
 using FluentValidation;
-using AutoMapper;
 
 namespace Syracuse;
 
 public class Agenda
 {
-    public int Id { get; set; } = default;
-    public string? Gender { get; set; } = default;
-    public int? Age { get; set; } = default;
-    public int? Height { get; set; } = default;
-    public int? Weight { get; set; } = default;
-    public int? ActivityLevel { get; set; } = default;
-    public int? DailyActivity { get; set; } = default;
-    public int? Purpouse { get; set; } = default;
-    public int? Focus { get; set; } = default;
-    public string? Diseases { get; set; } = default;
-    public string? Trainer { get; set; } = default;
+    public int Id { get; set; }
+    public string? Gender { get; set; }
+    public int? Age { get; set; }
+    public int? Height { get; set; }
+    public int? Weight { get; set; }
+    public int? ActivityLevel { get; set; }
+    public int? DailyActivity { get; set; }
+    public int? Purpouse { get; set; }
+    public int? Focus { get; set; }
+    public string? Diseases { get; set; }
+    public string? Trainer { get; set; }
 
     public Agenda UpdateWith(Agenda? agenda)
     {
@@ -58,20 +57,19 @@ public class AgendaMapper : Profile
             .ForMember(dest => dest.Focus,
                 opt => opt.MapFrom(src => src.Key("focus").AsValue()))
             .ForMember(dest => dest.Trainer,
-                opt => opt.MapFrom(src => System.IO.Path.GetFileNameWithoutExtension(src.Key("trainer")).ToLower()));
+                opt => opt.MapFrom(src => Path.GetFileNameWithoutExtension(src.Key("trainer")).ToLower()));
     }
 }
 
 public class AgendaValidator : AbstractValidator<Agenda>
 {
-    public SaleType SaleType { get; set; }
-
     public AgendaValidator()
     {
         RuleFor(customer => customer.Gender)
             .NotNull().WithName("Пол")
             .Matches("Мужчина|Женщина").WithMessage("Укажите корректный пол")
-            .When(_ => SaleType is SaleType.Coach or SaleType.Standart or SaleType.Pro or SaleType.Beginner or SaleType.Profi);
+            .When(_ => SaleType is SaleType.Coach or SaleType.Standart or SaleType.Pro or SaleType.Beginner
+                or SaleType.Profi);
         RuleFor(customer => customer.Age)
             .NotNull().WithName("Возраст")
             .InclusiveBetween(10, 99).WithMessage("Укажите корректный возраст")
@@ -92,7 +90,8 @@ public class AgendaValidator : AbstractValidator<Agenda>
             .When(_ => SaleType is SaleType.Coach or SaleType.Standart or SaleType.Pro);
         RuleFor(customer => customer.Purpouse)
             .NotNull().WithMessage("Укажите цель тренировок")
-            .When(_ => SaleType is SaleType.Coach or SaleType.Standart or SaleType.Pro or SaleType.Beginner or SaleType.Profi);
+            .When(_ => SaleType is SaleType.Coach or SaleType.Standart or SaleType.Pro or SaleType.Beginner
+                or SaleType.Profi);
         RuleFor(customer => customer.Focus)
             .NotNull().WithMessage("Укажите акцент группы мышц")
             .When(_ => SaleType is SaleType.Coach or SaleType.Profi);
@@ -100,4 +99,6 @@ public class AgendaValidator : AbstractValidator<Agenda>
             .NotNull().WithMessage("Выберите тренера")
             .When(_ => SaleType is SaleType.Coach);
     }
+
+    public SaleType SaleType { get; set; }
 }

@@ -1,5 +1,6 @@
-namespace Syracuse;
 using System.Text.Json.Serialization;
+
+namespace Syracuse;
 
 [Serializable]
 public record YandexJsonRpc

@@ -1,6 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations.Schema;
-
-namespace Syracuse;
+﻿namespace Syracuse;
 
 public class Sale
 {

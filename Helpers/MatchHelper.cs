@@ -4,126 +4,12 @@ namespace Syracuse;
 
 public static class MatchHelper
 {
-    public static Dictionary<string?, string?> TransformToValues(Sale sale) => TransformToValues(sale, sale.Type);
-    public static Dictionary<string?, string?> TransformToValues(Sale sale, SaleType type)
-    {
-        Dictionary<string?, string?> valueDic = null;
-        switch (type)
-        {
-            case SaleType.Beginner:
-                valueDic = new()
-                {
-                    ["key"] = sale.Key,
-                    ["orderid"] = sale.OrderId.ToString(),
-                    ["name"] = sale.Client.Name,
-                    ["phone"] = sale.Client.Phone,
-                    ["email"] = sale.Client.Email,
-                    ["gender"] = sale.Agenda.Gender?.AsValue().ToString(),
-                    ["activity-level"] = sale.Agenda.ActivityLevel.ToString(),
-                    ["purpouse"] = sale.Agenda.Purpouse.ToString(),
-                };
-                break;
-            case SaleType.Profi:
-                valueDic = new()
-                {
-                    ["key"] = sale.Key,
-                    ["orderid"] = sale.OrderId.ToString(),
-                    ["name"] = sale.Client.Name,
-                    ["phone"] = sale.Client.Phone,
-                    ["email"] = sale.Client.Email,
-                    ["gender"] = sale.Agenda.Gender?.AsValue().ToString(),
-                    ["activity-level"] = sale.Agenda.ActivityLevel.ToString(),
-                    ["focus"] = sale.Agenda.Focus.ToString(),
-                    ["purpouse"] = sale.Agenda.Purpouse.ToString(),
-                    ["diseases"] = sale.Agenda.Diseases,
-                };
-                break;
-            case SaleType.Pro or SaleType.Standart:
-                valueDic = new()
-                {
-                    ["key"] = sale.Key,
-                    ["orderid"] = sale.OrderId.ToString(),
-                    ["name"] = sale.Client.Name,
-                    ["phone"] = sale.Client.Phone,
-                    ["email"] = sale.Client.Email,
-                    ["gender"] = sale.Agenda.Gender?.AsValue().ToString(),
-                    ["age"] = sale.Agenda.Age.ToString(),
-                    ["height"] = sale.Agenda.Height.ToString(),
-                    ["weight"] = sale.Agenda.Weight.ToString(),
-                    ["daily-activity"] = sale.Agenda.DailyActivity.ToString(),
-                    ["purpouse"] = sale.Agenda.Purpouse.ToString(),
-                };
-                break;
-            case SaleType.Coach:
-                valueDic = new()
-                {
-                    ["key"] = sale.Key,
-                    ["orderid"] = sale.OrderId.ToString(),
-                    ["name"] = sale.Client.Name,
-                    ["phone"] = sale.Client.Phone,
-                    ["email"] = sale.Client.Email,
-                    ["gender"] = sale.Agenda.Gender?.AsValue().ToString(),
-                    ["age"] = sale.Agenda.Age.ToString(),
-                    ["height"] = sale.Agenda.Height.ToString(),
-                    ["weight"] = sale.Agenda.Weight.ToString(),
-                    ["daily-activity"] = sale.Agenda.DailyActivity.ToString(),
-                    ["activity-level"] = sale.Agenda.ActivityLevel.ToString(),
-                    ["focus"] = sale.Agenda.Focus.ToString(),
-                    ["purpouse"] = sale.Agenda.Purpouse.ToString(),
-                    ["diseases"] = sale.Agenda.Diseases,
-                    ["trainer"] = sale.Agenda.Trainer,
-                };
-                break;
-            case SaleType.WorkoutProgram:
-                valueDic = new()
-                {
-                    ["key"] = sale.Key,
-                    ["gender"] = sale.Agenda.Gender?.AsValue()?.ToString(),
-                    ["activity-level"] = sale.Agenda.ActivityLevel?.ToString(),
-                    ["focus"] = sale.Agenda.Focus?.ToString(),
-                    ["purpouse"] = sale.Agenda.Purpouse?.ToString(),
-                    ["diseases"] = sale.Agenda.Diseases,
-                };
-                break;
-        }
-        return valueDic;
-    }
-
-    // --------------------------------------------------------------------------------
-
-    public static T2? Key<T1, T2>(this Dictionary<T1, T2> dictionary, T1 key)
-    {
-        if (key is not null)
-            return dictionary.TryGetValue(key, out var value) ? value : default(T2);
-        else
-            return default(T2);
-    }
-
-    public static string? AsNonEmpty(this string value) => string.IsNullOrWhiteSpace(value) ? null : value;
-    public static bool? AsBool(this int? value) => Archive_ValueToBool.Key(value);
-    public static int? AsInt(this string? str) => int.TryParse(str, out int val) ? val : null;
-    public static int? AsInt(this int? value) => Archive_ValueToInt.Key(value);
-    public static float? AsFloat(this int? value) => Archive_ValueToFloat.Key(value);
-    public static string? AsString(this int? value) => Archive_ValueToString.Key(value);
-    public static string? AsCode(this int? value) => Archive_ValueToCode.Key(value);
-    public static int? AsValue(this string? form) => Archive_FormToValue.Key(form);
-    public static string? AsErrorTitle(this SaleType type) => Archive_SaleTypeToErrorTitle.Key(type);
-    public static string? AsReinputLink(this SaleType type) => Archive_SaleTypeToYandexFormForReinput.Key(type);
-    public static string? AsInfoString(this List<Contact> contacts, string separator)
-    {
-        var sb = new StringBuilder();
-        foreach (var contact in contacts)
-            sb.AppendLine(contact.Info);
-        if (separator is not null) sb.Replace("\n", separator);
-        return sb.ToString();
-    }
-
     // --------------------------------------------------------------------------------
 
     private static readonly Dictionary<int?, bool?> Archive_ValueToBool = new()
     {
         [22] = true,
-        [23] = false,
+        [23] = false
     };
 
     private static readonly Dictionary<int?, int?> Archive_ValueToInt = new()
@@ -131,7 +17,7 @@ public static class MatchHelper
         [18] = 2,
         [19] = 3,
         [20] = 4,
-        [21] = 5,
+        [21] = 5
     };
 
     private static readonly Dictionary<int?, float?> Archive_ValueToFloat = new()
@@ -144,7 +30,7 @@ public static class MatchHelper
         [5] = 1.375f,
         [6] = 1.55f,
         [7] = 1.725f,
-        [8] = 1.9f,
+        [8] = 1.9f
     };
 
     private static readonly Dictionary<int?, string?> Archive_ValueToString = new()
@@ -170,7 +56,7 @@ public static class MatchHelper
         [18] = "2",
         [19] = "3",
         [20] = "4",
-        [21] = "5",
+        [21] = "5"
     };
 
     private static readonly Dictionary<int?, string?> Archive_ValueToCode = new()
@@ -251,7 +137,7 @@ public static class MatchHelper
         ["Тренер"] = 36,
         ["Заболевания"] = 37,
 
-        ["Выбранные видео"] = 38,
+        ["Выбранные видео"] = 38
     };
 
     private static readonly Dictionary<SaleType?, string?> Archive_SaleTypeToErrorTitle = new()
@@ -262,7 +148,7 @@ public static class MatchHelper
         [SaleType.Beginner] = "Ошибка: программа тренировок для новичков",
         [SaleType.Profi] = "Ошибка: программа тренировок для профессионалов",
         [SaleType.Posing] = "Ошибка: уроки позинга Fitness Bikini",
-        [SaleType.Endo] = "Ошибка: запись на консультацию к эндокринологу",
+        [SaleType.Endo] = "Ошибка: запись на консультацию к эндокринологу"
     };
 
     private static readonly Dictionary<SaleType?, string?> Archive_SaleTypeToYandexFormForReinput = new()
@@ -272,6 +158,164 @@ public static class MatchHelper
         [SaleType.Pro] = "https://forms.yandex.ru/cloud/631364b43e0fc29063e3d915",
         [SaleType.Beginner] = "https://forms.yandex.ru/cloud/6311e6b78738c957e3f1d164",
         [SaleType.Profi] = "https://forms.yandex.ru/cloud/62ffe07d0170aca2958f5c0c",
-        [SaleType.WorkoutProgram] = "https://korablev-team.ru/load/wp",
+        [SaleType.WorkoutProgram] = "https://korablev-team.ru/load/wp"
     };
+
+    public static Dictionary<string?, string?> TransformToValues(Sale sale)
+    {
+        return TransformToValues(sale, sale.Type);
+    }
+
+    public static Dictionary<string?, string?> TransformToValues(Sale sale, SaleType type)
+    {
+        Dictionary<string?, string?> valueDic = null;
+        switch (type)
+        {
+            case SaleType.Beginner:
+                valueDic = new Dictionary<string?, string?>
+                {
+                    ["key"] = sale.Key,
+                    ["orderid"] = sale.OrderId.ToString(),
+                    ["name"] = sale.Client.Name,
+                    ["phone"] = sale.Client.Phone,
+                    ["email"] = sale.Client.Email,
+                    ["gender"] = sale.Agenda.Gender?.AsValue().ToString(),
+                    ["activity-level"] = sale.Agenda.ActivityLevel.ToString(),
+                    ["purpouse"] = sale.Agenda.Purpouse.ToString()
+                };
+                break;
+            case SaleType.Profi:
+                valueDic = new Dictionary<string?, string?>
+                {
+                    ["key"] = sale.Key,
+                    ["orderid"] = sale.OrderId.ToString(),
+                    ["name"] = sale.Client.Name,
+                    ["phone"] = sale.Client.Phone,
+                    ["email"] = sale.Client.Email,
+                    ["gender"] = sale.Agenda.Gender?.AsValue().ToString(),
+                    ["activity-level"] = sale.Agenda.ActivityLevel.ToString(),
+                    ["focus"] = sale.Agenda.Focus.ToString(),
+                    ["purpouse"] = sale.Agenda.Purpouse.ToString(),
+                    ["diseases"] = sale.Agenda.Diseases
+                };
+                break;
+            case SaleType.Pro or SaleType.Standart:
+                valueDic = new Dictionary<string?, string?>
+                {
+                    ["key"] = sale.Key,
+                    ["orderid"] = sale.OrderId.ToString(),
+                    ["name"] = sale.Client.Name,
+                    ["phone"] = sale.Client.Phone,
+                    ["email"] = sale.Client.Email,
+                    ["gender"] = sale.Agenda.Gender?.AsValue().ToString(),
+                    ["age"] = sale.Agenda.Age.ToString(),
+                    ["height"] = sale.Agenda.Height.ToString(),
+                    ["weight"] = sale.Agenda.Weight.ToString(),
+                    ["daily-activity"] = sale.Agenda.DailyActivity.ToString(),
+                    ["purpouse"] = sale.Agenda.Purpouse.ToString()
+                };
+                break;
+            case SaleType.Coach:
+                valueDic = new Dictionary<string?, string?>
+                {
+                    ["key"] = sale.Key,
+                    ["orderid"] = sale.OrderId.ToString(),
+                    ["name"] = sale.Client.Name,
+                    ["phone"] = sale.Client.Phone,
+                    ["email"] = sale.Client.Email,
+                    ["gender"] = sale.Agenda.Gender?.AsValue().ToString(),
+                    ["age"] = sale.Agenda.Age.ToString(),
+                    ["height"] = sale.Agenda.Height.ToString(),
+                    ["weight"] = sale.Agenda.Weight.ToString(),
+                    ["daily-activity"] = sale.Agenda.DailyActivity.ToString(),
+                    ["activity-level"] = sale.Agenda.ActivityLevel.ToString(),
+                    ["focus"] = sale.Agenda.Focus.ToString(),
+                    ["purpouse"] = sale.Agenda.Purpouse.ToString(),
+                    ["diseases"] = sale.Agenda.Diseases,
+                    ["trainer"] = sale.Agenda.Trainer
+                };
+                break;
+            case SaleType.WorkoutProgram:
+                valueDic = new Dictionary<string?, string?>
+                {
+                    ["key"] = sale.Key,
+                    ["gender"] = sale.Agenda.Gender?.AsValue()?.ToString(),
+                    ["activity-level"] = sale.Agenda.ActivityLevel?.ToString(),
+                    ["focus"] = sale.Agenda.Focus?.ToString(),
+                    ["purpouse"] = sale.Agenda.Purpouse?.ToString(),
+                    ["diseases"] = sale.Agenda.Diseases
+                };
+                break;
+        }
+
+        return valueDic;
+    }
+
+    // --------------------------------------------------------------------------------
+
+    public static T2? Key<T1, T2>(this Dictionary<T1, T2> dictionary, T1 key)
+    {
+        if (key is not null)
+            return dictionary.TryGetValue(key, out T2? value) ? value : default;
+        return default;
+    }
+
+    public static string? AsNonEmpty(this string value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
+    public static bool? AsBool(this int? value)
+    {
+        return Archive_ValueToBool.Key(value);
+    }
+
+    public static int? AsInt(this string? str)
+    {
+        return int.TryParse(str, out var val) ? val : null;
+    }
+
+    public static int? AsInt(this int? value)
+    {
+        return Archive_ValueToInt.Key(value);
+    }
+
+    public static float? AsFloat(this int? value)
+    {
+        return Archive_ValueToFloat.Key(value);
+    }
+
+    public static string? AsString(this int? value)
+    {
+        return Archive_ValueToString.Key(value);
+    }
+
+    public static string? AsCode(this int? value)
+    {
+        return Archive_ValueToCode.Key(value);
+    }
+
+    public static int? AsValue(this string? form)
+    {
+        return Archive_FormToValue.Key(form);
+    }
+
+    public static string? AsErrorTitle(this SaleType type)
+    {
+        return Archive_SaleTypeToErrorTitle.Key(type);
+    }
+
+    public static string? AsReinputLink(this SaleType type)
+    {
+        return Archive_SaleTypeToYandexFormForReinput.Key(type);
+    }
+
+    public static string? AsInfoString(this List<Contact> contacts, string separator)
+    {
+        var sb = new StringBuilder();
+        foreach (Contact? contact in contacts)
+            sb.AppendLine(contact.Info);
+        if (separator is not null) sb.Replace("\n", separator);
+        return sb.ToString();
+    }
 }

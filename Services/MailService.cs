@@ -1,43 +1,44 @@
-﻿using MimeKit;
+﻿using MailKit;
 using MailKit.Net.Smtp;
-using MailKit.Search;
-using MailKit.Net.Imap;
-using MailKit;
+using MimeKit;
 
 namespace Syracuse;
 
 public interface IMailService : IAsyncDisposable
 {
     Task SendMailAsync(MailService.MailContent content);
-    Task SendMailAsync(MailType type, string addresseeEmail, string addresseeName, string subject, string message, params MailService.FilePath[] filePaths);
-    Task SendMailAsync(MailType type, (string email, string name)[] addressee, string subject, string message, params (string name, string path)[] filePaths);
+
+    Task SendMailAsync(MailType type, string addresseeEmail, string addresseeName, string subject, string message,
+        params MailService.FilePath[] filePaths);
+
+    Task SendMailAsync(MailType type, (string email, string name)[] addressee, string subject, string message,
+        params (string name, string path)[] filePaths);
     //Task LoadAttachmentAsync(string key, string path);
 }
 
 public class MailService : IMailService
 {
-    public record FilePath(string name, string path);
-    public record MailContent(MailType type, string email, string name, string subject, string message, FilePath[] files);
-
-    private ILogger<MailService> _logger;
-    private bool _isInit = false;
-
     private static readonly string s_successMailPath = Path.Combine("Resources", "Templates", "success-mail.html");
     private static readonly string s_awaitMailPath = Path.Combine("Resources", "Templates", "await-mail.html");
     private static readonly string s_failureMailPath = Path.Combine("Resources", "Templates", "failure-mail.html");
     private static readonly string s_innerMailPath = Path.Combine("Resources", "Templates", "inner-mail.html");
     private static readonly string s_smtpHost = "smtp.mail.ru";
     private static readonly int s_smtpPort = 465;
-    private static string s_user => Environment.GetEnvironmentVariable("MAIL_USER");
-    private static string s_password => Environment.GetEnvironmentVariable("MAIL_PASS");
-    private static bool s_fake => Environment.GetEnvironmentVariable("MAIL_FAKE").Equals("yes");
-    private static MailboxAddress s_from => new MailboxAddress(
-        Environment.GetEnvironmentVariable("MAIL_FROM_NAME"),
-        Environment.GetEnvironmentVariable("MAIL_FROM_ADDR"));
 
-    private SmtpClient _smtpClient;
+    private readonly ILogger<MailService> _logger;
+    private bool _isInit;
+
+    private SmtpClient? _smtpClient;
 
     public MailService(ILogger<MailService> logger) => _logger = logger;
+
+    private static string User => Environment.GetEnvironmentVariable("MAIL_USER") ?? string.Empty;
+    private static string Password => Environment.GetEnvironmentVariable("MAIL_PASS") ?? string.Empty;
+    private static bool Fake => Environment.GetEnvironmentVariable("MAIL_FAKE") == "yes";
+
+    private static MailboxAddress From => new(
+        Environment.GetEnvironmentVariable("MAIL_FROM_NAME"),
+        Environment.GetEnvironmentVariable("MAIL_FROM_ADDR"));
 
     public async ValueTask DisposeAsync()
     {
@@ -49,30 +50,20 @@ public class MailService : IMailService
         }
     }
 
-    private async Task Init()
+    public async Task SendMailAsync(MailContent content)
     {
-        if (s_fake || _isInit) return;
-
-        try
-        {
-            var logger = new ProtocolLogger(Path.Combine("Resources", "Logs", "smtp.log"));
-            _smtpClient = new SmtpClient(logger);
-            await _smtpClient.ConnectAsync(s_smtpHost, s_smtpPort, true);
-            await _smtpClient.AuthenticateAsync(s_user, s_password);
-            _isInit = true;
-        }
-        catch (Exception e)
-        {
-            _logger.LogWarning("Mail (Init): problem with SMTP auth");
-            throw new MailExсeption("Ошибка при авторизации на SMTP сервере почты", e);
-        }
+        await SendMailAsync(content.Type, content.Email, content.Name, content.Subject, content.Message, content.Files);
     }
 
-    public async Task SendMailAsync(MailService.MailContent content) => await SendMailAsync(content.type, content.email, content.name, content.subject, content.message, content.files);
+    public async Task SendMailAsync(MailType type, string addresseeEmail, string addresseeName, string subject,
+        string message, params FilePath[] filePaths)
+    {
+        await SendMailAsync(type, new[] { (addresseeEmail, addresseeName) }, subject, message,
+            filePaths.Select(fp => (name: fp.Name, path: fp.Path)).ToArray());
+    }
 
-    public async Task SendMailAsync(MailType type, string addresseeEmail, string addresseeName, string subject, string message, params MailService.FilePath[] filePaths) => await SendMailAsync(type, new[] { (addresseeEmail, addresseeName) }, subject, message, filePaths.Select(fp => (fp.name, fp.path)).ToArray());
-
-    public async Task SendMailAsync(MailType type, (string email, string name)[] addressee, string subject, string message, params (string name, string path)[] filePaths)
+    public async Task SendMailAsync(MailType type, (string email, string name)[] addressee, string subject,
+        string message, params (string name, string path)[] filePaths)
     {
         await Init();
         var builder = new BodyBuilder();
@@ -85,7 +76,7 @@ public class MailService : IMailService
                 MailType.Awaiting => await File.ReadAllTextAsync(s_awaitMailPath),
                 MailType.Failure => await File.ReadAllTextAsync(s_failureMailPath),
                 MailType.Inner => await File.ReadAllTextAsync(s_innerMailPath),
-                _ => throw new NotImplementedException(),
+                _ => throw new NotImplementedException()
             };
 
             var htmlBody = html.Replace("TEXT", message);
@@ -99,9 +90,8 @@ public class MailService : IMailService
 
         try
         {
-            if (filePaths is not null)
-                foreach ((string name, string path) in filePaths)
-                    builder.Attachments.Add(name, File.ReadAllBytes(path));
+            foreach (var (name, path) in filePaths)
+                builder.Attachments.Add(name, await File.ReadAllBytesAsync(path));
         }
         catch (Exception e)
         {
@@ -111,26 +101,25 @@ public class MailService : IMailService
 
         try
         {
-            foreach (var addr in addressee)
+            foreach ((string email, string name) addr in addressee)
             {
                 var emailMessage = new MimeMessage();
-                emailMessage.From.Add(s_from);
-                emailMessage.Bcc.Add(s_from);
+                emailMessage.From.Add(From);
+                emailMessage.Bcc.Add(From);
                 emailMessage.To.Add(new MailboxAddress(addr.name, addr.email));
                 emailMessage.Subject = subject;
                 emailMessage.Body = builder.ToMessageBody();
 
-                if (s_fake)
+                if (Fake)
                 {
-                    _logger.LogWarning($"Mail (sending): fake mail is sent to {addr.email} - {addr.name} with message {message}");
+                    _logger.LogWarning(
+                        $"Mail (sending): fake mail is sent to {addr.email} - {addr.name} with message {message}");
                     continue;
                 }
-                else
-                {
-                    await _smtpClient.SendAsync(emailMessage);
-                    _logger.LogInformation($"Mail (sent) to {emailMessage.To.First().Name}");
-                }
-            };
+
+                if (_smtpClient != null) await _smtpClient.SendAsync(emailMessage);
+                _logger.LogInformation($"Mail (sent) to {emailMessage.To.First().Name}");
+            }
         }
         catch (Exception ex)
         {
@@ -138,6 +127,30 @@ public class MailService : IMailService
             throw new MailExсeption("Ошибка при отправке сообщений", ex);
         }
     }
+
+    private async Task Init()
+    {
+        if (Fake || _isInit) return;
+
+        try
+        {
+            var logger = new ProtocolLogger(Path.Combine("Resources", "Logs", "smtp.log"));
+            _smtpClient = new SmtpClient(logger);
+            await _smtpClient.ConnectAsync(s_smtpHost, s_smtpPort, true);
+            await _smtpClient.AuthenticateAsync(User, Password);
+            _isInit = true;
+        }
+        catch (Exception e)
+        {
+            _logger.LogWarning("Mail (Init): problem with SMTP auth");
+            throw new MailExсeption("Ошибка при авторизации на SMTP сервере почты", e);
+        }
+    }
+
+    public record FilePath(string Name, string Path);
+
+    public record MailContent(MailType Type, string Email, string Name, string Subject, string Message,
+        FilePath[] Files);
 
     // public async Task LoadAttachmentAsync(string subject, string path)
     // {
@@ -192,4 +205,3 @@ public class MailService : IMailService
     //     }
     // }
 }
-

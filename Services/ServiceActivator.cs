@@ -2,18 +2,24 @@ namespace Syracuse;
 
 public static class ServiceActivator
 {
-    internal static IServiceProvider _serviceProvider = null;
-    public static void Configure(IServiceProvider serviceProvider) => _serviceProvider = serviceProvider;
-    public static IServiceScope GetScope(IServiceProvider serviceProvider = null)
+    private static IServiceProvider _serviceProvider;
+
+    public static void Configure(IServiceProvider serviceProvider)
     {
-        var provider = serviceProvider ?? _serviceProvider;
+        _serviceProvider = serviceProvider;
+    }
+
+    public static IServiceScope GetScope(IServiceProvider serviceProvider = null!)
+    {
+        IServiceProvider? provider = serviceProvider ?? _serviceProvider;
         return provider?
             .GetRequiredService<IServiceScopeFactory>()
             .CreateScope();
     }
-    public static AsyncServiceScope? GetAsyncScope(IServiceProvider serviceProvider = null)
+
+    public static AsyncServiceScope? GetAsyncScope(IServiceProvider serviceProvider = null!)
     {
-        var provider = serviceProvider ?? _serviceProvider;
+        IServiceProvider? provider = serviceProvider ?? _serviceProvider;
         return provider?
             .GetRequiredService<IServiceScopeFactory>()
             .CreateAsyncScope();

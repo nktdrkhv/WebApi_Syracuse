@@ -1,12 +1,12 @@
-using Syracuse;
 using System.Globalization;
-using Microsoft.AspNetCore.Diagnostics;
 using AutoMapper;
+using CsvHelper;
 using FluentValidation;
 using Hangfire;
 using Hangfire.Storage.SQLite;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
-using CsvHelper;
+using Syracuse;
 
 CultureInfo.CurrentCulture = new CultureInfo("ru-RU");
 
@@ -20,7 +20,7 @@ var mappingConfig = new MapperConfiguration(mc =>
     mc.AddProfile(new ContactMapper());
     mc.AddProfile(new WorkoutProgramMapper());
 });
-var autoMapper = mappingConfig.CreateMapper();
+IMapper? autoMapper = mappingConfig.CreateMapper();
 
 // --------------------------------------------------------------------------------
 
@@ -46,7 +46,8 @@ if (!builder.Environment.IsDevelopment())
     builder.Services.AddLettuceEncrypt();
 
 builder.Services.AddCors(options =>
-     options.AddDefaultPolicy(policy => policy.WithOrigins("https://korablev-team.ru").AllowAnyMethod().AllowAnyHeader()));
+    options.AddDefaultPolicy(policy =>
+        policy.WithOrigins("https://korablev-team.ru").AllowAnyMethod().AllowAnyHeader()));
 builder.Services.AddCors();
 builder.Host.UseSystemd();
 
@@ -65,7 +66,7 @@ if (!app.Environment.IsDevelopment())
             {
                 var exceptionObject = context.Features.Get<IExceptionHandlerFeature>();
                 context.Response.StatusCode = StatusCodes.Status500InternalServerError;
-                app.Logger.LogError(exceptionObject.Error, $"Upper exception handler");
+                if (exceptionObject != null) app.Logger.LogError(exceptionObject.Error, "Upper exception handler");
                 return Task.CompletedTask;
             });
     });
@@ -84,7 +85,8 @@ app.MapPost("/tildaForm", (HttpContext context, ICustomerService customerService
     {
         try
         {
-            var data = context.Request.Form.ToDictionary(form => form.Key.ToLower(), form => form.Value.ToString());
+            Dictionary<string, string>? data =
+                context.Request.Form.ToDictionary(form => form.Key.ToLower(), form => form.Value.ToString());
             return customerService.HandleTildaAsync(data);
         }
         catch (Exception e)
@@ -102,43 +104,47 @@ app.MapPost("/tilda", (HttpContext context, TildaOrder json, ICustomerService cu
     if (!string.Equals(json.Token, KeyHelper.ApiToken)) return Results.Unauthorized();
     if (json.Test == "test") return Results.Ok("test");
 
-    var data = new Dictionary<string, string>();
-    data["name"] = json.Name;
-    data["email"] = json.Email;
-    data["phone"] = json.Phone;
-    data["orderid"] = json.Payment.OrderId;
+    var data = new Dictionary<string, string>
+    {
+        ["name"] = json.Name,
+        ["email"] = json.Email,
+        ["phone"] = json.Phone,
+        ["orderid"] = json.Payment.OrderId
+    };
     var formname = json.Payment.Products.First().ExternalId.Split('#').First();
     data["formname"] = formname;
 
-    foreach (var option in json.Payment.Products.First()?.Options ?? Enumerable.Empty<ProductOption>())
-        if (option.Option.AsValue().AsCode() is string code)
+    foreach (ProductOption? option in json.Payment.Products.First()?.Options)
+        if (option.Option.AsValue().AsCode() is { } code)
             data[code] = option.Variant;
 
     if (formname == "online-coach")
     {
         var productCode = db.Context.Products.Where(p => p.Label == data["trainer"]).Select(p => p.Code).Single();
-        var productExpectedPaidAmount = db.Context.Products.Where(p => p.Code == productCode).Select(p => p.Price).Single();
+        var productExpectedPaidAmount =
+            db.Context.Products.Where(p => p.Code == productCode).Select(p => p.Price).Single();
         if (int.Parse(json.Payment.Amount) != productExpectedPaidAmount)
             return Results.Problem("Incorrect paiment");
         data["trainer"] = productCode;
     }
     else if (formname == "posing")
     {
-        int finalAmount = 0;
-        foreach (var productLabel in data["videos"].Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-            finalAmount += GetPrice(db.Context, db.Context.Products.Where(p => p.Label == productLabel).Select(p => p.Code).Single());
+        var finalAmount = data["videos"]
+            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Sum(productLabel => GetPrice(db.Context, db.Context.Products.Where(p => p.Label == productLabel).Select(p => p.Code).Single()));
         if (finalAmount != int.Parse(json.Payment.Amount))
             return Results.Problem("Incorrect paiment");
     }
     else
     {
         var productPaidAmount = int.Parse(json.Payment.Amount);
-        var productExpectedPaidAmount = db.Context.Products.Where(p => p.Code == formname).Select(p => p.Price).Single();
+        var productExpectedPaidAmount =
+            db.Context.Products.Where(p => p.Code == formname).Select(p => p.Price).Single();
         if (productPaidAmount != productExpectedPaidAmount)
             return Results.Problem("Incorrect paiment");
     }
 
-    app.Logger.LogInformation(message: LogHelper.RawData(data));
+    app.Logger.LogInformation(LogHelper.RawData(data));
 
     context.Response.OnCompleted(() =>
     {
@@ -158,13 +164,13 @@ app.MapPost("/tilda", (HttpContext context, TildaOrder json, ICustomerService cu
 
 app.MapPost("/yandex", (HttpContext context, YandexJsonRpc json, ICustomerService customerService) =>
 {
-    var data = json.Params;
-    app.Logger.LogInformation(message: LogHelper.RawData(data));
+    Dictionary<string, string>? data = json.Params;
+    app.Logger.LogInformation(LogHelper.RawData(data));
 
     if (!string.Equals(data.Key("token"), KeyHelper.ApiToken))
     {
-        app.Logger.LogInformation($"Unauthorized: post yandex");
-        return Results.Unauthorized(); ;
+        app.Logger.LogInformation("Unauthorized: post yandex");
+        return Results.Unauthorized();
     }
 
     context.Response.OnCompleted(() => Task.Run(async () =>
@@ -198,13 +204,13 @@ app.MapGet("/admin/{table}", async (string table, string? token, IDbService db) 
         return Results.Unauthorized();
     }
 
-    var handler = table switch
+    Task<Table>? handler = table switch
     {
         "nondone" => db.GetNonDoneSalesAsync("<br/>"),
         "team" => db.GetTeamAsync("<br/>"),
         "wp" => db.GetWorkoutProgramsAsync("<br/>"),
         "products" => db.GetProductsAsync("<br/>"),
-        _ => Task.FromResult(new Table()),
+        _ => Task.FromResult(new Table())
     };
 
     return Results.Json(await handler);
@@ -212,22 +218,23 @@ app.MapGet("/admin/{table}", async (string table, string? token, IDbService db) 
 
 app.MapGet("/completed-sales-csv", (string? token, IDbService db) =>
 {
-    if (token != KeyHelper.ApiToken) throw new ArgumentNullException("Api key for Completed-sales-csv is not specified");
+    if (token != KeyHelper.ApiToken)
+        throw new ArgumentNullException("Api key for Completed-sales-csv is not specified");
 
-    var completedSales =
+    List<CompletedSale>? completedSales =
         db.Context.Sales.Include(s => s.Client).Include(s => s.Product)
-        .Where(s => s.IsDone)
-        .Select(s => new CompletedSale()
-        {
-            SaleId = s.Id,
-            OrderId = s.OrderId,
-            DateOfPurchase = $"{s.PurchaseTime.ToShortDateString()} {s.PurchaseTime.ToShortTimeString()}",
-            Email = s.Client.Email,
-            Phone = s.Client.Phone,
-            Name = s.Client.Name,
-            Products = s.Product.AsString("; ", true),
-        })
-        .ToList();
+            .Where(s => s.IsDone)
+            .Select(s => new CompletedSale
+            {
+                SaleId = s.Id,
+                OrderId = s.OrderId,
+                DateOfPurchase = $"{s.PurchaseTime.ToShortDateString()} {s.PurchaseTime.ToShortTimeString()}",
+                Email = s.Client.Email,
+                Phone = s.Client.Phone,
+                Name = s.Client.Name,
+                Products = s.Product.AsString("; ", true)
+            })
+            .ToList();
 
     var tempFilePath = Path.GetTempFileName();
     using (var writer = new StreamWriter(tempFilePath))
@@ -235,15 +242,15 @@ app.MapGet("/completed-sales-csv", (string? token, IDbService db) =>
     {
         csv.WriteHeader<CompletedSale>();
         csv.NextRecord();
-        foreach (var completedSale in completedSales)
+        foreach (CompletedSale? completedSale in completedSales)
         {
             csv.WriteRecord(completedSale);
             csv.NextRecord();
         }
-    };
+    }
 
-    var utcNow = DateTime.UtcNow;
-    app.Logger.LogInformation("Completed sales in cvs is responsed");
+    DateTime utcNow = DateTime.UtcNow;
+    app.Logger.LogInformation("Completed sales in cvs is responded");
     return Results.File(tempFilePath, "text/csv", $"KorablevTeamArchive_{utcNow.Day}-{utcNow.Month}-{utcNow.Year}.csv");
 });
 
@@ -272,7 +279,6 @@ app.MapGet("/trigger-health-check", (string? token) =>
 
 // --------------------------------------------------------------------------------
 if (app.Environment.IsDevelopment())
-{
     app.MapGet("/env", () =>
     {
         app.Logger.LogInformation("Env: API_TOKEN = {}", Environment.GetEnvironmentVariable("API_TOKEN"));
@@ -283,9 +289,6 @@ if (app.Environment.IsDevelopment())
         app.Logger.LogInformation("Env: MAIL_FROM_NAME = {}", Environment.GetEnvironmentVariable("MAIL_FROM_NAME"));
         app.Logger.LogInformation("Env: MAIL_FROM_ADDR = {}", Environment.GetEnvironmentVariable("MAIL_FROM_ADDR"));
     });
-
-
-}
 // --------------------------------------------------------------------------------
 
 ServiceActivator.Configure(app.Services);
@@ -296,16 +299,10 @@ app.Run();
 
 int GetPrice(ApplicationContext context, string productCode)
 {
-    var item = context.Products.Include(p => p.Childs).Where(p => p.Code == productCode).FirstOrDefault();
-    if (item is null)
-        return -1;
-    if (item.Price == 0 && item.Childs is List<Product> goods)
-    {
-        int price = 0;
-        foreach (var elem in goods)
-            price += elem.Price;
-        return price;
-    }
-    else
-        return item.Price;
+    Product? item = context.Products.Include(p => p.Childs).FirstOrDefault(p => p.Code == productCode);
+
+    if (item is null) return -1;
+    if (item.Price == 0 && item.Childs is { } goods) return goods.Sum(elem => elem.Price);
+
+    return item.Price;
 }

@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Globalization;
+using System.Text;
 
 namespace Syracuse;
 
@@ -14,18 +15,21 @@ public static class LogHelper
             sb.Append(part);
             sb.Append(separator);
         }
+
         return sb.ToString();
     }
+
     public static string AsString(this List<Product>? source, string separator, bool isLabel = false)
     {
         if (source is null)
             return "—";
         var sb = new StringBuilder();
-        foreach (var element in source)
+        foreach (Product? element in source)
         {
             sb.Append(isLabel ? element.Label : element.Code);
             sb.Append(separator);
         }
+
         return sb.ToString();
     }
 
@@ -33,13 +37,14 @@ public static class LogHelper
     {
         var log = new StringBuilder();
         _ = log.AppendLine("Raw input data:");
-        _ = log.AppendLine(DateTime.UtcNow.ToString());
-        foreach (var input in data)
+        _ = log.AppendLine(DateTime.UtcNow.ToString(CultureInfo.InvariantCulture));
+        foreach (KeyValuePair<string, string> input in data)
         {
             if (string.Equals(input.Key, "file"))
                 continue;
             _ = log.AppendLine($"{input.Key} - {input.Value}");
         }
+
         log[^1] = ' ';
         return log.ToString();
     }
@@ -60,7 +65,8 @@ public static class LogHelper
             if (agenda.Age is not null) sb.AppendLine($"Возраст: {agenda.Age}");
             if (agenda.Height is not null) sb.AppendLine($"Рост: {agenda.Height}");
             if (agenda.Weight is not null) sb.AppendLine($"Вес: {agenda.Weight}");
-            if (agenda.ActivityLevel is not null) sb.AppendLine($"Количество тренировок в неделю: {agenda.ActivityLevel.AsString()}");
+            if (agenda.ActivityLevel is not null)
+                sb.AppendLine($"Количество тренировок в неделю: {agenda.ActivityLevel.AsString()}");
             if (agenda.DailyActivity is not null) sb.AppendLine($"Образ жизни: {agenda.DailyActivity.AsString()}");
             if (agenda.Purpouse is not null) sb.AppendLine($"Цель: {agenda.Purpouse.AsString()}");
             if (agenda.Focus is not null) sb.AppendLine($"Акцент на: {agenda.Focus.AsString()}");
@@ -71,5 +77,8 @@ public static class LogHelper
         return sb.ToString();
     }
 
-    public static string ClientInfo(Client client) => ClientInfo(client, null);
+    public static string ClientInfo(Client client)
+    {
+        return ClientInfo(client, null);
+    }
 }
